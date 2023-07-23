@@ -17,9 +17,11 @@ from .utils import (
 class MBConvBlock(nn.Module):
     """
     Mobile Inverted Residual Bottleneck Block
+
     Args:
         block_args (namedtuple): BlockArgs, see above
         global_params (namedtuple): GlobalParam, see above
+
     Attributes:
         has_se (bool): Whether the block contains a Squeeze and Excitation layer.
     """
@@ -99,11 +101,14 @@ class MBConvBlock(nn.Module):
 class EfficientNet(nn.Module):
     """
     An EfficientNet model. Most easily loaded with the .from_name or .from_pretrained methods
+
     Args:
         blocks_args (list): A list of BlockArgs to construct blocks
         global_params (namedtuple): A set of GlobalParams shared between blocks
+
     Example:
         model = EfficientNet.from_pretrained('efficientnet-b0')
+
     """
 
     def __init__(self, blocks_args=None, global_params=None):
