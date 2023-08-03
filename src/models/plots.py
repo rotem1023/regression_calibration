@@ -1,7 +1,7 @@
 from matplotlib import pyplot as plt
 import pickle
 
-from calibration_plots import plot_uncert, plot_uncert_multi
+# from calibration_plots import plot_uncert, plot_uncert_multi
 from uce import uceloss
 from scaling import set_scaler, scale_bins, calc_vars_mse_bins
 
@@ -62,6 +62,24 @@ def plot_s_per_bin(base_model, ds):
     plt.title('Scaler per bin')
     plt.savefig(save_path + f'scaler_per_bin_{base_model}_gaussian_{ds}.png')
     plt.close()
+    
+def plot_q_per_bin(base_model, ds):
+    save_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
+    with open(save_path + f'{base_model}_gaussian_{ds}_q_bins_conformal.pickle', 'rb') as handle:
+        q_dict = pickle.load(handle)
+        
+    bins_q = q_dict['q_bins'].cpu()
+    single_q = q_dict['q']
+    
+    plt.figure()
+    plt.scatter(range(len(bins_q)), bins_q, label='Scaler per bin')
+    plt.plot(range(len(bins_q)), [single_q]*len(bins_q), label='Single scaler', color='r')
+    plt.legend()
+    plt.title('Scaler per bin')
+    plt.savefig(save_path + f'scaler_per_bin_{base_model}_gaussian_{ds}_conformal.png')
+    plt.close()
+    
+    print(save_path + f'scaler_per_bin_{base_model}_gaussian_{ds}_conformal.png')
     
 def plot_calib_plots(base_model, ds, calib_mode, metric):
     save_path = '/dsi/scratch/from_netapp/users/frenkel2/data/calibration/well-calibrated-regression-uncertainty/results_uce_bins/'
@@ -130,7 +148,8 @@ if __name__ == '__main__':
     metric = 'uce'
     calib_mode = 'bvs'
     ds = 'boneage'
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     # plot_uce_per_bin(base_model)
     # plot_s_per_bin(base_model, ds)
-    plot_calib_plots(base_model, ds, calib_mode, metric)
+    # plot_calib_plots(base_model, ds, calib_mode, metric)
+    plot_q_per_bin(base_model, ds)

@@ -59,7 +59,7 @@ import torch
 
 
 def avg_len(uncert, q, n_bins=15, outlier=0.0, range=None, single=False):
-    device = errors.device
+    device = uncert.device
     
     if single:
         avg_len = (2 * q * uncert).mean()
