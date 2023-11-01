@@ -7,7 +7,7 @@ from utils import leaky_relu1
 
 
 class BreastPathQModel(torch.nn.Module):
-    def __init__(self, base_model, in_channels=3, out_channels=1, dropout_rate=0.2, pretrained=False):
+    def __init__(self, base_model, in_channels=3, out_channels=2, dropout_rate=0.2, pretrained=False):
         super().__init__()
 
         assert base_model in ['resnet50', 'resnet101', 'densenet121', 'densenet201', 'efficientnetb0', 'efficientnetb4']
@@ -60,9 +60,6 @@ class BreastPathQModel(torch.nn.Module):
 
         self._fc_mu1 = torch.nn.Linear(fc_in_features, fc_in_features)
         self._fc_mu2 = torch.nn.Linear(fc_in_features, out_channels)
-        self._fc_logvar1 = torch.nn.Linear(fc_in_features, fc_in_features)
-        # self._fc_logvar2 = torch.nn.Linear(fc_in_features, out_channels)
-        self._fc_logvar2 = torch.nn.Linear(fc_in_features, 1)
 
         if 'resnet' in base_model:
             self._base_model.fc = torch.nn.Identity()
