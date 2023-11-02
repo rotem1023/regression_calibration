@@ -14,13 +14,8 @@ import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
-sys.path.append('/home/dsi/frenkel2/regression_calibration')
-os.chdir('/home/dsi/frenkel2/regression_calibration')
-from src.data.data_generator_oct import OCTDataset
+from data.data_generator_oct import OCTDataset
 from cqr_model import BreastPathQModel
-from uce import uceloss
-from src.features.calibration_plots import plot_uncert, plot_frequency, plot_uncert_multi
-from utils import nll_criterion_gaussian, avg_len
 from glob import glob
 import statistics
 import math
