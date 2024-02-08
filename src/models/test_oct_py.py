@@ -103,6 +103,23 @@ def scale_bins_single_conformal(uncert_test, q):
     return after_single_scaling_avg_len, before_scaling_avg_len
 
 def main():
+    eval_single_img = False
+    data_dir = "C:\lior\studies\master\projects\calibration/regression calibration/3doct-pose-dataset/data/"
+    
+    if eval_single_img:
+        image_name = '11613' # 7246 / 6956 / 11613
+        image_path = f"C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age/boneage-training-dataset/{image_name}.png"
+        eval_single(data_dir, image_path)
+    else:
+        mix_indices = False
+        save_params = True
+        load_params = False
+        save_test = True
+        load_test = False
+        calc_mean = True
+        eval_test_set(data_dir, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)    
+    
+def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regression calibration/3doct-pose-dataset/data/", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
     base_model = 'densenet201'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
@@ -111,7 +128,7 @@ def main():
     
     model = BreastPathQModel(base_model, out_channels=6).to(device)
 
-    checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_499.pth.tar")[0] # efficientnet
+    checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_315.pth.tar")[0] # efficientnet
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_315.pth.tar")[0] # densenet
     
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -121,7 +138,7 @@ def main():
     batch_size = 16
     resize_to = (256, 256)
 
-    data_dir = '/home/dsi/frenkel2/data/3doct-pose-dataset/data/'
+    # data_dir = '/home/dsi/frenkel2/data/3doct-pose-dataset/data/'
     data_set = OCTDataset(data_dir=data_dir, augment=False, resize_to=resize_to)
     assert len(data_set) > 0
 
@@ -141,7 +158,7 @@ def main():
     avg_len_all_gc = []
     avg_cov_all_gc = []
 
-    for _ in range(20):
+    for _ in range(1):
         val_original_shape = calib_original_indices.shape[0]
         test_original_shape = test_original_indices.shape[0]
 
@@ -207,7 +224,7 @@ def main():
         logvar_test_list = []
         target_test_list = []
 
-        for i in range(5):
+        for i in range(1):
             y_p_test = []
             mus_test = []
             vars_test = []
@@ -288,6 +305,19 @@ def main():
             avg_cov_after_single_list.append(avg_cov_after_single)
             avg_cov_after_single_list_gc.append(avg_cov_after_single_gc)
             
+        if calc_mean:
+            top_limit = mu_test_list[0] + uncert_test[0] * q
+            bottom_limit = mu_test_list[0] - uncert_test[0] * q
+            
+            pred = ((top_limit + bottom_limit) / 2).squeeze(1)
+            mse_cp = torch.nn.functional.mse_loss(pred, target_test_list[0].mean(dim=1))
+            
+            top_limit_gc = mu_test_list[0] + uncert_test[0] * q_gc
+            bottom_limit_gc = mu_test_list[0] - uncert_test[0] * q_gc
+            
+            pred_gc = ((top_limit_gc + bottom_limit_gc) / 2).squeeze(1)
+            mse_gc = torch.nn.functional.mse_loss(pred_gc, target_test_list[0].mean(dim=1))
+            
         print(f'Test before, Avg Length:', torch.stack(avg_len_before_list).mean().item())
         print(f'Test after single CP, Avg Length:', torch.stack(avg_len_single_list).mean().item())
         print(f'Test after single GC, Avg Length:', torch.stack(avg_len_single_list_gc).mean().item())
@@ -296,7 +326,10 @@ def main():
         print(f'Test after single CP with Avg Cov:', torch.tensor(avg_cov_after_single_list).mean().item())
         print(f'Test after single GC with Avg Cov:', torch.tensor(avg_cov_after_single_list_gc).mean().item())
         
-        q_all.append(q.item())
+        print(f'Test MSE CP:', mse_cp.item())
+        print(f'Test MSE GC:', mse_gc.item())
+        
+        q_all.append(q)
         avg_len_all.append(torch.stack(avg_len_single_list).mean().item())
         avg_cov_all.append(torch.tensor(avg_cov_after_single_list).mean().item())
         
