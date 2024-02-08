@@ -1,9 +1,9 @@
 import numpy as np
 import os
 import sys
-np.random.seed(1)
+# np.random.seed(1)
 import torch
-torch.manual_seed(1)
+# torch.manual_seed(1)
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
@@ -11,10 +11,9 @@ from torchvision import datasets, transforms, models
 from torch.utils.data import SubsetRandomSampler, ConcatDataset, Subset
 from tqdm import tqdm
 import torch
-from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
-from data.data_generator_endovis import EndoVisDataset
+from data_generator_endovis import EndoVisDataset
 from cqr_model import BreastPathQModel
 from glob import glob
 import statistics
@@ -100,7 +99,7 @@ def main():
     model = BreastPathQModel(base_model, out_channels=2).to(device)
 
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_best_freeze_lr_0.0003_nll.pth.tar")[0]
-    checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/cqr/{base_model}_0.95_oct_cqr_best_new.pth.tar")[0]
+    checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\cqr\{base_model}_0.95_endovis_cqr_best_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_315.pth.tar")[0]
 
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -109,8 +108,8 @@ def main():
     
     batch_size = 16
 
-    data_dir_val = '/home/dsi/frenkel2/data/Tracking_Robotic_Testing/Tracking'
-    data_dir_test = '/home/dsi/frenkel2/data/Tracking_Robotic_Testing/Tracking'
+    data_dir_val = r'C:\lior\studies\master\projects\calibration\regression calibration\Tracking_Robotic_Testing\Tracking'
+    data_dir_test = r'C:\lior\studies\master\projects\calibration\regression calibration\Tracking_Robotic_Testing\Tracking'
     data_set_valid_original = EndoVisDataset(data_dir=data_dir_val, mode='val', augment=False, scale=0.5)
     data_set_test_original = EndoVisDataset(data_dir=data_dir_test, mode='test', augment=False, scale=0.5)
 
@@ -127,12 +126,13 @@ def main():
     avg_cov_all = []
 
     for _ in range(20):
-        # Define the indices to split the dataset
-        split_indices = [0, len(data_set_valid_original)]  # Split between dataset1 and dataset2
+        all_indices = torch.tensor((range(0, len(combined_dataset))))
+        idx = torch.randperm(all_indices.nelement())
+        all_indices = all_indices.view(-1)[idx].view(all_indices.size())
 
         # Create subsets using the split_indices
-        data_set_valid = Subset(combined_dataset, range(split_indices[0], split_indices[1]))
-        data_set_test = Subset(combined_dataset, range(split_indices[1], len(combined_dataset)))
+        data_set_valid = Subset(combined_dataset, all_indices[:len(combined_dataset)//2])
+        data_set_test = Subset(combined_dataset, all_indices[len(combined_dataset)//2:])
         
         calib_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=batch_size, shuffle=False)
@@ -159,7 +159,7 @@ def main():
         mu_test_list = []
         target_test_list = []
 
-        for i in range(5):
+        for i in range(1):
             t_p_test = []
             targets_test = []
 
