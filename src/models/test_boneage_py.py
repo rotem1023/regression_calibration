@@ -114,16 +114,17 @@ def main():
         image_path = f"C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age/boneage-training-dataset/{image_name}.png"
         eval_single(data_dir, image_path)
     else:
-        mix_indices = False
-        save_params = False
-        load_params = True
-        save_test = False
-        load_test = True
+        mix_indices = True
+        save_params = True
+        load_params = False
+        save_test = True
+        load_test = False
         calc_mean = True
-        eval_test_set(data_dir, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
+        partial = True
+        eval_test_set(data_dir, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test, partial=partial)
         
         
-def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
+def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False, partial=False):
     base_model = 'efficientnetb4'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
@@ -161,7 +162,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
     avg_len_all_gc = []
     avg_cov_all_gc = []
 
-    for _ in range(1):
+    for _ in range(20):
         if mix_indices:
             val_original_shape = calib_original_indices.shape[0]
             test_original_shape = test_original_indices.shape[0]
@@ -172,6 +173,9 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
 
             calib_indices, test_indices = torch.split(all_indices, [val_original_shape, test_original_shape])
 
+            if partial:
+                calib_indices = calib_indices[:100]
+                                              
             print(calib_indices.shape)
             print(test_indices.shape)
 
@@ -188,7 +192,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         
         if load_params:
             load_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-            with open(load_path + f'{base_model}_gaussian_boneage_calib_params.pickle', 'rb') as handle:
+            with open(load_path + f'{base_model}_gaussian_boneage_calib_params_partial.pickle', 'rb') as handle:
                 calib_dict = pickle.load(handle)
                 mu_calib = calib_dict['mu']
                 target_calib = calib_dict['target']
@@ -234,7 +238,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                 
             if save_params:
                 save_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-                with open(save_path + f'{base_model}_gaussian_boneage_calib_params.pickle', 'wb') as handle:
+                with open(save_path + f'{base_model}_gaussian_boneage_calib_params_partial.pickle', 'wb') as handle:
                     pickle.dump({'mu': mu_calib,
                                 'target': target_calib,
                                 'err': err_calib, 
@@ -244,7 +248,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         
         if load_test:
             load_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-            with open(load_path + f'{base_model}_gaussian_boneage_test_results.pickle', 'rb') as handle:
+            with open(load_path + f'{base_model}_gaussian_boneage_test_results_partial.pickle', 'rb') as handle:
                 calib_dict = pickle.load(handle)
                 y_p_test_list = calib_dict['yp']
                 mu_test_list = calib_dict['mu']
@@ -294,7 +298,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                     
             if save_test:
                 save_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-                with open(save_path + f'{base_model}_gaussian_boneage_test_results.pickle', 'wb') as handle:
+                with open(save_path + f'{base_model}_gaussian_boneage_test_results_partial.pickle', 'wb') as handle:
                     pickle.dump({'yp': y_p_test_list, 'mu': mu_test_list, 'target': target_test_list, 'logvar': logvar_test_list}, handle, protocol=pickle.HIGHEST_PROTOCOL)
                     
         err_test = [(target_test-mu_test).pow(2).mean(dim=1, keepdim=True).sqrt() for target_test, mu_test in zip(target_test_list, mu_test_list)]

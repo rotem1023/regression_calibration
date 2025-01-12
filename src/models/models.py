@@ -113,4 +113,4 @@ class BreastPathQModel(torch.nn.Module):
         if test:
             return mu_temp_accu.clamp(0, 1), logvar_temp_accu.clamp_max(0), muvar.clamp(0, 1)
         else:
-            return mu, logvar, 
+            return mu, logvar, muvar

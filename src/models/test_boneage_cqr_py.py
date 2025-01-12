@@ -16,12 +16,16 @@ from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_boneage import BoneAgeDataset
 from cqr_model import BreastPathQModel
+from models import BreastPathQModel as BreastPathQModelGauss
 from glob import glob
 import statistics
 import math
 from skimage import io
 import pickle
 import pandas as pd
+
+
+use_gauss_model = True
 
 
 # CQR
@@ -109,7 +113,7 @@ def main():
         load_params = True
         save_test = False
         load_test = True
-        calc_mean = True
+        calc_mean = False
         eval_test_set(data_dir, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
     
     
@@ -118,10 +122,16 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     
-    model = BreastPathQModel(base_model, in_channels=1, out_channels=2).to(device)
+    if use_gauss_model:
+        model = BreastPathQModelGauss(base_model, in_channels=1, out_channels=1,
+                                pretrained=False).to(device)
+    else:
+    
+        model = BreastPathQModel(base_model, in_channels=1, out_channels=2).to(device)
 
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_best_freeze_lr_0.0003_nll.pth.tar")[0]
-    checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\cqr\{base_model}_0.95_boneage_cqr_best_new.pth.tar")[0]
+    # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\cqr\{base_model}_0.95_boneage_cqr_best_new.pth.tar")[0]
+    checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\cqr\{base_model}_0.95_boneage_lr_3e-05_cqr_best_new_gauss_pre.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_315.pth.tar")[0]
 
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -184,7 +194,11 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                 for batch_idx, (data, target) in enumerate(tqdm(calib_loader)):
                     data, target = data.to(device), target.to(device)
 
-                    t_p = model(data, dropout=True, mc_dropout=True, test=True)
+                    if use_gauss_model:
+                        t_low, t_high, _ = model(data, dropout=True, mc_dropout=True, test=True)
+                        t_p = torch.cat((t_low, t_high), -1)
+                    else:
+                        t_p = model(data, dropout=True, mc_dropout=True, test=True)
 
                     t_p_calib.append(t_p.detach())
                     targets_calib.append(target.detach())
@@ -196,7 +210,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         
             if save_params:
                 save_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-                with open(save_path + f'{base_model}_gaussian_boneage_calib_params_cqr_095.pickle', 'wb') as handle:
+                with open(save_path + f'{base_model}_gaussian_boneage_calib_params_cqr_095_pre.pickle', 'wb') as handle:
                     pickle.dump({'mu': mu_calib,
                                 'target': target_calib}, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
@@ -222,7 +236,11 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                     for batch_idx, (data, target) in enumerate(tqdm(test_loader)):
                         data, target = data.to(device), target.to(device)
 
-                        t_p = model(data, dropout=True, mc_dropout=True, test=True)
+                        if use_gauss_model:
+                            t_low, t_high, _ = model(data, dropout=True, mc_dropout=True, test=True)
+                            t_p = torch.cat((t_low, t_high), -1)
+                        else:
+                            t_p = model(data, dropout=True, mc_dropout=True, test=True)
 
                         t_p_test.append(t_p.detach())
                         targets_test.append(target.detach())
@@ -237,7 +255,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                     
             if save_test:
                 save_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-                with open(save_path + f'{base_model}_gaussian_boneage_test_results_cqr_095.pickle', 'wb') as handle:
+                with open(save_path + f'{base_model}_gaussian_boneage_test_results_cqr_095_pre.pickle', 'wb') as handle:
                     pickle.dump({'tp': t_p_test_list, 'mu': mu_test_list, 'target': target_test_list}, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
                 
@@ -277,7 +295,8 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         print(f'Test before with Avg Cov:', torch.tensor(avg_cov_before_list).mean().item())
         print(f'Test after single with Avg Cov:', torch.tensor(avg_cov_after_single_list).mean().item())
         
-        print(f'Test MSE CQR:', mse.item())
+        if calc_mean:
+            print(f'Test MSE CQR:', mse.item())
         
         q_all.append(q.item())
         avg_len_all.append(torch.stack(avg_len_single_list).mean().item())

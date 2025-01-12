@@ -124,7 +124,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     
-    alpha = 0.1
+    alpha = 0.05
     
     model = BreastPathQModel(base_model, out_channels=6).to(device)
 

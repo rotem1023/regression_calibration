@@ -18,6 +18,9 @@ from cqr_model import BreastPathQModel
 from glob import glob
 import statistics
 import math
+from skimage import io
+import pandas as pd
+import pickle
 
 
 # CQR
@@ -92,6 +95,23 @@ def scale_bins_single_conformal(mu_test, q):
     return after_single_scaling_avg_len, before_scaling_avg_len
 
 def main():
+    eval_single_img = True
+    data_dir = f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking"
+    
+    if eval_single_img:
+        image_name = '0225' # 7246 / 6956 / 11613
+        image_path = f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking/Dataset3/frames/{image_name}.png"
+        eval_single(data_dir, image_path)
+    else:
+        mix_indices = False
+        save_params = True
+        load_params = False
+        save_test = True
+        load_test = False
+        calc_mean = False
+        eval_test_set(data_dir, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
+
+def eval_test_set(data_dir=f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
     base_model = 'densenet201'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
@@ -108,31 +128,37 @@ def main():
     
     batch_size = 16
 
-    data_dir_val = r'C:\lior\studies\master\projects\calibration\regression calibration\Tracking_Robotic_Testing\Tracking'
-    data_dir_test = r'C:\lior\studies\master\projects\calibration\regression calibration\Tracking_Robotic_Testing\Tracking'
-    data_set_valid_original = EndoVisDataset(data_dir=data_dir_val, mode='val', augment=False, scale=0.5)
-    data_set_test_original = EndoVisDataset(data_dir=data_dir_test, mode='test', augment=False, scale=0.5)
+    # data_dir_val = r'C:\lior\studies\master\projects\calibration\regression calibration\Tracking_Robotic_Testing\Tracking'
+    # data_dir_test = r'C:\lior\studies\master\projects\calibration\regression calibration\Tracking_Robotic_Testing\Tracking'
+    data_set_valid_original = EndoVisDataset(data_dir=data_dir, mode='val', augment=False, scale=0.5)
+    data_set_test_original = EndoVisDataset(data_dir=data_dir, mode='test', augment=False, scale=0.5)
 
     assert len(data_set_valid_original) > 0
     assert len(data_set_test_original) > 0
     print(len(data_set_valid_original))
     print(len(data_set_test_original))
     
-    # Combine the datasets into one
-    combined_dataset = ConcatDataset([data_set_valid_original, data_set_test_original])
+    if mix_indices:
+        # Combine the datasets into one
+        combined_dataset = ConcatDataset([data_set_valid_original, data_set_test_original])
     
     q_all = []
     avg_len_all = []
     avg_cov_all = []
 
-    for _ in range(20):
-        all_indices = torch.tensor((range(0, len(combined_dataset))))
-        idx = torch.randperm(all_indices.nelement())
-        all_indices = all_indices.view(-1)[idx].view(all_indices.size())
+    for _ in range(1):
+        if mix_indices:
+            all_indices = torch.tensor((range(0, len(combined_dataset))))
+            idx = torch.randperm(all_indices.nelement())
+            all_indices = all_indices.view(-1)[idx].view(all_indices.size())
 
-        # Create subsets using the split_indices
-        data_set_valid = Subset(combined_dataset, all_indices[:len(combined_dataset)//2])
-        data_set_test = Subset(combined_dataset, all_indices[len(combined_dataset)//2:])
+            # Create subsets using the split_indices
+            data_set_valid = Subset(combined_dataset, all_indices[:len(combined_dataset)//2])
+            data_set_test = Subset(combined_dataset, all_indices[len(combined_dataset)//2:])
+            
+        else:
+            data_set_valid = data_set_valid_original
+            data_set_test = data_set_test_original
         
         calib_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(data_set_test, batch_size=batch_size, shuffle=False)
@@ -140,20 +166,34 @@ def main():
         model.eval()
         t_p_calib = []
         targets_calib = []
-
-        with torch.no_grad():
-            for batch_idx, (data, target) in enumerate(tqdm(calib_loader)):
-                data, target = data.to(device), target.to(device)
-
-                t_p = model(data, dropout=True, mc_dropout=True, test=True)
-
-                t_p_calib.append(t_p.detach())
-                targets_calib.append(target.detach())
         
-        
-        t_p_calib = torch.cat(t_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
-        mu_calib = t_p_calib.mean(dim=1)
-        target_calib = torch.cat(targets_calib, dim=0)
+        if load_params:
+            load_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
+            with open(load_path + f'{base_model}_gaussian_endovis_calib_params_cqr_095.pickle', 'rb') as handle:
+                calib_dict = pickle.load(handle)
+                mu_calib = calib_dict['mu']
+                target_calib = calib_dict['target']
+
+        else:
+            with torch.no_grad():
+                for batch_idx, (data, target) in enumerate(tqdm(calib_loader)):
+                    data, target = data.to(device), target.to(device)
+
+                    t_p = model(data, dropout=True, mc_dropout=True, test=True)
+
+                    t_p_calib.append(t_p.detach())
+                    targets_calib.append(target.detach())
+            
+            
+            t_p_calib = torch.cat(t_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
+            mu_calib = t_p_calib.mean(dim=1)
+            target_calib = torch.cat(targets_calib, dim=0)
+            
+            if save_params:
+                save_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
+                with open(save_path + f'{base_model}_gaussian_endovis_calib_params_cqr_095.pickle', 'wb') as handle:
+                    pickle.dump({'mu': mu_calib,
+                                'target': target_calib}, handle, protocol=pickle.HIGHEST_PROTOCOL)
         
         t_p_test_list = []
         mu_test_list = []
@@ -218,6 +258,81 @@ def main():
     print(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}')
     print(f'avg_len mean: {statistics.mean(avg_len_all)}, avg_len std: {statistics.stdev(avg_len_all)}')
     print(f'avg_cov mean: {statistics.mean(avg_cov_all)}, avg_cov std: {statistics.stdev(avg_cov_all)}')
+    
+def to_pil_and_resize(x, scale):
+    w, h, _ = x.shape
+    new_size = (int(w * scale), int(h * scale))
+
+    trans_always1 = [
+        transforms.ToPILImage(),
+        transforms.Resize(new_size),
+    ]
+
+    trans = transforms.Compose(trans_always1)
+    x = trans(x)
+    return x
+
+def eval_single(data_dir, image_path, labels_min=1.0, labels_max=228.0):
+    base_model = 'densenet201'
+    assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
+    device = torch.device("cuda:0")
+    
+    alpha = 0.1
+    
+    model = BreastPathQModel(base_model, out_channels=2).to(device)
+
+    checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\cqr\{base_model}_0.95_endovis_cqr_best_new.pth.tar")[0]
+
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    model.load_state_dict(checkpoint['state_dict'])
+    print("Loading previous weights at epoch " + str(checkpoint['epoch']) + " from\n" + checkpoint_path)
+    model.eval()
+    
+    batch_size = 16
+    
+    x = io.imread(image_path)
+    x = np.atleast_3d(x)
+    x = to_pil_and_resize(x, 0.5)
+    
+    path = '/'.join(image_path.split('/')[:-2])
+    df = pd.read_csv(path+'/Right_Instrument_Pose.txt', header=None, delim_whitespace=True)
+    for index, row in df.iterrows():
+        if row[0] > -1 and row[1] > -1:
+            if f"{path}/frames/{(index+1):04}.png" == image_path:
+                label = [row[0]/720, row[1]/576]
+                break
+
+    trans = transforms.ToTensor()
+
+    x = trans(x).unsqueeze(0)
+    
+    label = torch.tensor(label).float()
+    
+    with torch.no_grad():
+        data, target = x.to(device), label.to(device)
+
+        t_p = model(data, dropout=True, mc_dropout=True, test=True)
+        
+        t_p_test = t_p.detach().clamp(0, 1).permute(1,0,2)
+        mu_test = t_p_test.mean(dim=1)
+        
+    load_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
+    with open(load_path + f'{base_model}_gaussian_endovis_calib_params_cqr_095.pickle', 'rb') as handle:
+        calib_dict = pickle.load(handle)
+        mu_calib = calib_dict['mu']
+        target_calib = calib_dict['target']
+        
+    q = calc_optimal_q(target_calib.mean(dim=1), mu_calib, alpha=alpha)
+    
+    top_limit = mu_test[:, 1] + q
+    bottom_limit = mu_test[:, 0] - q
+    
+    image_name = int(image_path.split('/')[-1].split('.')[0])
+    
+    print(f'Test target for {image_name}:', target[0].item())
+    
+    print(f'Test top limit CQR for {image_name}:', top_limit.item())
+    print(f'Test bottom limit CQR for {image_name}:',bottom_limit.item())
     
     
 if __name__ == '__main__':
