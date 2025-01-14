@@ -92,5 +92,6 @@ target/
 /runs/
 
 # data files
-src/models/data/
+src/models/data/data
+src/models/data/data.zip
 venv/
