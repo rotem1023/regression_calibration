@@ -90,3 +90,7 @@ target/
 .mypy_cache/
 
 /runs/
+
+# data files
+src/models/data/
+venv/

@@ -3,7 +3,8 @@ from torch.nn.functional import leaky_relu
 from efficientnet_pytorch import EfficientNet
 from resnet import resnet50, resnet101
 from densenet import densenet121, densenet201
-from utils import leaky_relu1
+from torch.nn.functional import leaky_relu
+
 
 
 class BreastPathQModel(torch.nn.Module):

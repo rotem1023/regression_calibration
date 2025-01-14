@@ -45,7 +45,7 @@ def nll_criterion_laplacian(mu, logsigma, target, reduction='mean'):
 
 
 def save_current_snapshot(base_model, qhigh, dataset, e, model, optimizer_net, train_losses, valid_losses, coverage, avg_length):
-    filename = f'/home/dsi/frenkel2/regression_calibration/models/cqr/{base_model}_{qhigh}_{dataset}_cqr_{e}_new.pth.tar'
+    filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/models/cqr/{base_model}_{qhigh}_{dataset}_cqr_{e}_new.pth.tar'
     print(f"Saving at epoch: {e}")
     torch.save({
         'epoch': e,

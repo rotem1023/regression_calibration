@@ -3,6 +3,7 @@
 # Leibniz Universität Hannover, Germany
 # 2019
 
+import os
 import fire
 import torch
 import torch.optim as optim
@@ -10,9 +11,10 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.sampler import SubsetRandomSampler
 import numpy as np
 from tqdm import tqdm
-from data_generator_breast import BreastPathQDataset
+# from data_generator_breast import BreastPathQDataset
 from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
+from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 from models import BreastPathQModel
 from utils import kaiming_normal_init
@@ -23,9 +25,9 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model,
-          likelihood,
-          dataset,
+def train(base_model= 'densenet201',
+          likelihood= 'gaussian',
+          dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
           epochs=500,
@@ -33,11 +35,12 @@ def train(base_model,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0):
+          gpu=1,
+          level=1):
 
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     assert likelihood in ['gaussian', 'laplacian']
-    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct']
+    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar']
     assert gpu in [0, 1]
 
     device = torch.device("cuda:"+str(gpu) if torch.cuda.is_available() else "cpu")
@@ -56,6 +59,9 @@ def train(base_model,
     writer = SummaryWriter(comment=f"_{dataset}_{base_model}_{likelihood}")
 
     resize_to = (256, 256)
+    dataset_name = dataset
+    if dataset == 'lumbar':
+        dataset_name = f'{dataset}_L{level}'
 
     if dataset == 'breastpathq':
         resize_to = (384, 384)
@@ -123,6 +129,24 @@ def train(base_model,
 
         data_set_train = EndoVisDataset(data_dir=data_dir+'/train', augment=True, scale=0.5, preload=True)
         data_set_valid = EndoVisDataset(data_dir=data_dir+'/valid', augment=False, scale=0.5, preload=True)
+
+        assert len(data_set_train) > 0
+        assert len(data_set_valid) > 0
+
+        print("len(data_set_train)", len(data_set_train))
+        print("len(data_set_valid)", len(data_set_valid))
+
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
+    elif dataset == 'lumbar':
+        in_channels = 3
+        out_channels = 2
+        pretrained = True
+
+        
+
+        data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5)
+        data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5)
 
         assert len(data_set_train) > 0
         assert len(data_set_valid) > 0
@@ -271,7 +295,8 @@ def train(base_model,
                 is_best = True
 
             if is_best:
-                filename = f"./snapshots/{base_model}_{likelihood}_{dataset}_best.pth.tar"
+                os.makedirs('./snapshots', exist_ok=True)
+                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best.pth.tar"
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
@@ -284,10 +309,10 @@ def train(base_model,
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-        save_current_snapshot(base_model, likelihood, dataset, e, model, optimizer_net, train_losses, valid_losses)
+        save_current_snapshot(base_model, likelihood, dataset_name, e, model, optimizer_net, train_losses, valid_losses)
 
     except KeyboardInterrupt:
-        save_current_snapshot(base_model, likelihood, dataset, e-1, model, optimizer_net, train_losses, valid_losses)
+        save_current_snapshot(base_model, likelihood, dataset_name, e-1, model, optimizer_net, train_losses, valid_losses)
 
 
 if __name__ == '__main__':
