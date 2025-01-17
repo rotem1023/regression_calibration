@@ -4,6 +4,8 @@ from efficientnet_pytorch import EfficientNet
 from resnet import resnet50, resnet101
 from densenet import densenet121, densenet201
 from utils import leaky_relu1
+import timm
+import torch.nn.functional as F
 
 
 class BreastPathQModel(torch.nn.Module):
@@ -53,9 +55,10 @@ class BreastPathQModel(torch.nn.Module):
         if base_model == 'efficientnetb4':
             if pretrained:
                 assert in_channels == 3
+                # self._base_model = timm.create_model('efficientnet_b4', pretrained=True)
                 self._base_model = EfficientNet.from_pretrained('efficientnet-b4')
             else:
-                self._base_model = EfficientNet.from_name('efficientnet-b4', {'in_channels': in_channels})
+                self._base_model = EfficientNet.from_name('efficientnet-b4', in_channels= in_channels)
             fc_in_features = 1792
 
         self._fc_mu1 = torch.nn.Linear(fc_in_features, fc_in_features)
@@ -114,3 +117,38 @@ class BreastPathQModel(torch.nn.Module):
             return mu_temp_accu.clamp(0, 1), logvar_temp_accu.clamp_max(0), muvar.clamp(0, 1)
         else:
             return mu, logvar, muvar
+        
+
+
+
+# class BreastPathQModel(torch.nn.Module):
+#     def __init__(self, base_model, in_channels=3, out_channels=1, dropout_rate=0.2, pretrained=False):
+#         super().__init__()
+
+#         assert in_channels == 3, "EfficientNet-B4 requires 3 input channels"
+
+#         self._base_model = timm.create_model('efficientnet_b4', pretrained=pretrained, in_chans=in_channels, num_classes=0)
+#         fc_in_features = 1792
+
+#         self._fc_mu1 = torch.nn.Linear(fc_in_features, fc_in_features)
+#         self._fc_mu2 = torch.nn.Linear(fc_in_features, out_channels)
+#         self._fc_logvar1 = torch.nn.Linear(fc_in_features, fc_in_features)
+#         self._fc_logvar2 = torch.nn.Linear(fc_in_features, 1)
+
+#         self._dropout_T = 25
+#         self._dropout_p = 0.5
+
+#     def forward(self, x, dropout=False):
+#         features = self._base_model(x)
+#         features = features.view(features.size(0), -1)  # Flatten
+
+#         mu_temp = F.leaky_relu(self._fc_mu1(features))
+#         mu = self._fc_mu2(mu_temp)
+
+#         logvar_temp = F.leaky_relu(self._fc_logvar1(features))
+#         logvar = self._fc_logvar2(logvar_temp)
+
+#         if dropout:
+#             mu = F.dropout(mu, p=self._dropout_p, training=True)
+
+#         return mu, logvar, features

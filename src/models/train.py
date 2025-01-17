@@ -25,7 +25,7 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           batch_size=32,
@@ -37,6 +37,8 @@ def train(base_model= 'densenet201',
           weight_decay=1e-8,
           gpu=1,
           level=1):
+    print("Current PID:", os.getpid())
+
 
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     assert likelihood in ['gaussian', 'laplacian']
