@@ -109,7 +109,7 @@ def scale_bins_single_conformal(uncert_test, q):
 def main():
     print("Current PID:", os.getpid())
     eval_single_img = False
-    level = 5
+    level = 3
     data_dir = f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking"
     
     if eval_single_img:
@@ -126,7 +126,7 @@ def main():
         eval_test_set(level=level, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")

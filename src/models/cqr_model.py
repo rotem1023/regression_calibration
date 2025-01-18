@@ -56,7 +56,7 @@ class BreastPathQModel(torch.nn.Module):
                 assert in_channels == 3
                 self._base_model = EfficientNet.from_pretrained('efficientnet-b4')
             else:
-                self._base_model = EfficientNet.from_name('efficientnet-b4', {'in_channels': in_channels})
+                self._base_model = EfficientNet.from_name('efficientnet-b4', in_channels= in_channels)
             fc_in_features = 1792
 
         self._fc_mu1 = torch.nn.Linear(fc_in_features, fc_in_features)

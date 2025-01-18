@@ -99,7 +99,6 @@ def scale_bins_single_conformal(mu_test, q):
 def main():
     print("Current PID:", os.getpid())
     eval_single_img = False
-    level = 5
     data_dir = f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking"
     
     if eval_single_img:
@@ -113,23 +112,28 @@ def main():
         save_test = True
         load_test = False
         calc_mean = False
-        eval_test_set(level=level, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
+        eval_test_set(save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
-    models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
+    # efficientnetb4, densenet201
+    base_model = 'densenet201'
+    level = 2
+    models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:3")
     iters = 20
     alpha = 0.1
     
+    print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
+    
     model = BreastPathQModel(base_model, out_channels=2).to(device)
 
-    # TODO: load checkpoint 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    
-    checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
+    if alpha == 0.1:
+        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_cqr_best_new.pth.tar', map_location=device)
+    else:
+        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_0.05_cqr_best_new.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     
     batch_size = 64

@@ -18,11 +18,11 @@ from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
 from data_generator_oct import OCTDataset
 from cqr_model import BreastPathQModel
-from models import BreastPathQModel as BreastPathQModelGauss
+# from models import BreastPathQModel as BreastPathQModelGauss
 from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
 from utils import save_current_snapshot
-
+from data_generator_lumbar import LumbarDataset
 
 torch.backends.cudnn.benchmark = True
 
@@ -112,19 +112,21 @@ def train(base_model,
           lr_patience=20,
           weight_decay=1e-8,
           gpu=0,
-          gamma=0.5):
+          gamma=0.5, 
+          level = 1,
+          alpha= 0.1):
           
-    qlow = 0.05
-    qhigh = 0.95
+    qlow = alpha/2
+    qhigh = 1-alpha/2
     
     use_gauss_model = True
-    gauss_pretrained = True
+    gauss_pretrained = False
     gauss_freeze = True
     
     print(dataset)
 
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct']
+    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar']
     assert gpu in [0, 1, 2, 3]
 
     device = torch.device("cuda:"+str(gpu) if torch.cuda.is_available() else "cpu")
@@ -224,6 +226,24 @@ def train(base_model,
 
         train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
+    elif dataset == 'lumbar':
+        in_channels = 3
+        out_channels = 2
+        pretrained = True
+
+        
+
+        data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5)
+        data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5)
+
+        assert len(data_set_train) > 0
+        assert len(data_set_valid) > 0
+
+        print("len(data_set_train)", len(data_set_train))
+        print("len(data_set_valid)", len(data_set_valid))
+
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
     elif dataset == 'oct':
         in_channels = 3
         out_channels = 6
@@ -255,28 +275,31 @@ def train(base_model,
     else:
         assert False
 
-    if use_gauss_model:
-        model = BreastPathQModelGauss(base_model, in_channels=in_channels, out_channels=out_channels,
-                                pretrained=pretrained).to(device)
-        if gauss_pretrained:
-            if dataset == 'boneage':
-                if base_model == 'densenet201':
-                    gauss_ckpt = "C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\densenet201_gaussian_boneage_493.pth.tar"
-                elif base_model == 'efficientnetb4':
-                    gauss_ckpt = "C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\efficientnetb4_gaussian_boneage_499.pth.tar"
+
+    model = BreastPathQModel(base_model, in_channels=in_channels, out_channels=out_channels,
+                             pretrained=pretrained).to(device)
+    # if use_gauss_model:
+    #     model = BreastPathQModelGauss(base_model, in_channels=in_channels, out_channels=out_channels,
+    #                             pretrained=pretrained).to(device)
+    #     if gauss_pretrained:
+    #         if dataset == 'boneage':
+    #             if base_model == 'densenet201':
+    #                 gauss_ckpt = "C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\densenet201_gaussian_boneage_493.pth.tar"
+    #             elif base_model == 'efficientnetb4':
+    #                 gauss_ckpt = "C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\efficientnetb4_gaussian_boneage_499.pth.tar"
             
-            checkpoint = torch.load(gauss_ckpt, map_location=device)
-            model.load_state_dict(checkpoint['state_dict'])
+    #         checkpoint = torch.load(gauss_ckpt, map_location=device)
+    #         model.load_state_dict(checkpoint['state_dict'])
             
-            if gauss_freeze:
-                for name, param in model.named_parameters():
-                    if name.split('.')[0] == '_base_model':
-                        param.requires_grad = False
+    #         if gauss_freeze:
+    #             for name, param in model.named_parameters():
+    #                 if name.split('.')[0] == '_base_model':
+    #                     param.requires_grad = False
                         
-                model._modules['_base_model'].eval()
-    else:
-        model = BreastPathQModel(base_model, in_channels=in_channels, out_channels=2,
-                                pretrained=pretrained).to(device)
+    #             model._modules['_base_model'].eval()
+    # else:
+    #     model = BreastPathQModel(base_model, in_channels=in_channels, out_channels=2,
+    #                             pretrained=pretrained).to(device)
     
     if not pretrained:
         kaiming_normal_init(model)
@@ -318,8 +341,9 @@ def train(base_model,
                 data, targets = data.to(device), targets.to(device)
                 optimizer_net.zero_grad()
                 if use_gauss_model:
-                    t_low, t_high, _ = model(data, dropout=True)
-                    t = torch.cat((t_low, t_high), -1)
+                    # t_low, t_high, _ = model(data, dropout=True)
+                    # t = torch.cat((t_low, t_high), -1)
+                    t  = model(data, dropout=True)
                 else:
                     t  = model(data, dropout=True)
                 loss = loss_func(t, targets).to(device)
@@ -348,8 +372,9 @@ def train(base_model,
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
                     if use_gauss_model:
-                        t_low, t_high, _ = model(data, dropout=True)
-                        t = torch.cat((t_low, t_high), -1)
+                        # t_low, t_high, _ = model(data, dropout=True)
+                        # t = torch.cat((t_low, t_high), -1)
+                        t  = model(data, dropout=True)
                     else:
                         t  = model(data, dropout=True)
                     loss_valid = loss_func(t, targets).to(device)
@@ -389,7 +414,7 @@ def train(base_model,
 
             if is_best:
                 # filename = f"./snapshots/{base_model}_{likelihood}_{dataset}_best.pth.tar"
-                filename = f'/home/dsi/frenkel2/regression_calibration/models/cqr/{base_model}_{qhigh}_{dataset}_cqr_best_new.pth.tar'
+                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_new.pth.tar'
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
@@ -404,30 +429,59 @@ def train(base_model,
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-        save_current_snapshot(base_model, qhigh, dataset, e, model, optimizer_net, train_losses, valid_losses, coverage, avg_length)
-
+            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_new.pth.tar'
+            print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}. filename: {filename}")
+            torch.save({
+                    'epoch': e,
+                    'state_dict': model.state_dict(),
+                    'optimizer': optimizer_net.state_dict(),
+                    'train_losses': train_losses,
+                    'val_losses': valid_losses,
+                    'coverage': coverage,
+                    'avg_len': avg_length
+                }, filename)
     except KeyboardInterrupt:
-        save_current_snapshot(base_model, qhigh, dataset, e-1, model, optimizer_net, train_losses, valid_losses, coverage, avg_length)
-
+        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_new.pth.tar'
+        print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}, filename: {filename}")
+        torch.save({
+                    'epoch': e,
+                    'state_dict': model.state_dict(),
+                    'optimizer': optimizer_net.state_dict(),
+                    'train_losses': train_losses,
+                    'val_losses': valid_losses,
+                    'coverage': coverage,
+                    'avg_len': avg_length
+                }, filename)
 
 if __name__ == '__main__':
-    E=500
-    BS=16
+    
+    BS=32
     LR=3e-4
     VS=2000
     PT=20
     WD=1e-7
-    GPU=0
+
     
+    dataset = 'lumbar'
+    # efficientnetb4 densenet201
     base_model = 'densenet201'
-    dataset = 'boneage'
+    level = 1
+    epochs=83
+    alpha=0.05
+    GPU=3
+    
+    print("Process ID: ", os.getpid())
+    
     train(base_model, dataset, batch_size=BS,
           init_lr=LR,
-          epochs=E,
+          epochs=epochs,
           augment=True,
           valid_size=VS,
           lr_patience=PT,
           weight_decay=WD,
           gpu=GPU,
-          gamma=0.5)
+          gamma=0.5,
+          level = level,
+          alpha=alpha)
+    print("finished")
     # fire.Fire(train)

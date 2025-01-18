@@ -16,7 +16,7 @@ def get_model_path(level, base_model,device):
 
 
 if __name__== '__main__':
-    level = 4
+    level = 1
     model_name = 'efficientnetb4'
     dataset = 'lumbar'
     group = 'test'
