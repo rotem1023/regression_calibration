@@ -77,8 +77,8 @@ def write_line(file, model_name, g_results, cp_results):
 
 
 if __name__ == '__main__':
-    level = 5
-    alpha = 0.1
+    level = 1
+    alpha = 0.05
     cp_results_dense, g_results_dense = load_cp_results('densenet201', alpha, level)
     cp_results_efficient, g_results_efficient = load_cp_results('efficientnetb4', alpha, level)
     # write the results to a latex table
