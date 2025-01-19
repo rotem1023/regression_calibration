@@ -465,8 +465,8 @@ if __name__ == '__main__':
     dataset = 'lumbar'
     # efficientnetb4 densenet201
     base_model = 'densenet201'
-    level = 1
-    epochs=83
+    level = 5
+    epochs=52
     alpha=0.05
     GPU=3
     

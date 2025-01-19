@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 def get_model_path(level, base_model,device):
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
-    model = BreastPathQModel(base_model, out_channels=2).to(device)
+    model = BreastPathQModel(base_model, out_channels=1).to(device)
     checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     return model
@@ -16,12 +16,13 @@ def get_model_path(level, base_model,device):
 
 
 if __name__== '__main__':
-    level = 1
-    model_name = 'efficientnetb4'
+    level = 4
+    # densenet201, efficientnetb4
+    model_name = 'densenet201'
     dataset = 'lumbar'
     group = 'test'
-    device = 'cuda:1'
-    batch_size = 8
+    device = 'cuda:0'
+    batch_size = 64
     
     
     model = get_model_path(level, model_name, device)

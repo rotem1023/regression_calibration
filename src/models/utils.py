@@ -35,6 +35,7 @@ def kaiming_uniform_init(m):
 
 
 def nll_criterion_gaussian(mu, logvar, target, reduction='mean'):
+    # loss = (torch.exp(-logvar) * torch.pow(target-mu, 2) + logvar)
     loss = torch.exp(-logvar) * torch.pow(target-mu, 2).mean(dim=1, keepdim=True) + logvar
     return loss.mean() if reduction == 'mean' else loss.sum()
 

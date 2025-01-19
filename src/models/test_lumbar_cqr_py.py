@@ -50,14 +50,14 @@ def set_scaler_conformal(target_calib, mu_calib, init_temp=2.5, log=True, alpha=
     printed_type = 'CQR'
             
     # Calculate optimal q
-    q = calc_optimal_q(target_calib.mean(dim=1), mu_calib, alpha=alpha)
+    q = calc_optimal_q(target_calib.unsqueeze(1).mean(dim=1), mu_calib, alpha=alpha)
     
     after_single_scaling_avg_len = torch.mean(abs((mu_calib[:, 1] + q) - (mu_calib[:, 0] - q)))
     # after_single_scaling_avg_len = ((mu_calib[1] + q) - (mu_calib[0] - q)).mean()
     print('Optimal scaler {} (val): {:.3f}'.format(printed_type, q))
     print('After single scaling- Avg Length {} (val): {}'.format(printed_type, after_single_scaling_avg_len))
     
-    after_single_scaling_avg_cov = avg_cov(mu_calib, q, target_calib.mean(dim=1))
+    after_single_scaling_avg_cov = avg_cov(mu_calib, q, target_calib.unsqueeze(1).mean(dim=1))
     print('After single scaling- Avg Cov {} (val): {}'.format(printed_type, after_single_scaling_avg_cov))
     
     return q
@@ -117,10 +117,10 @@ def main():
 def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
     # efficientnetb4, densenet201
     base_model = 'densenet201'
-    level = 2
+    level = 3
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:0")
     iters = 20
     alpha = 0.1
     
@@ -130,9 +130,9 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    if alpha == 0.1:
+    try:
         checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_cqr_best_new.pth.tar', map_location=device)
-    else:
+    except:
         checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_0.05_cqr_best_new.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     
@@ -193,6 +193,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
 
                     t_p_calib.append(t_p.detach())
                     targets_calib.append(target.detach())
+                    
+                    
             
             
             t_p_calib = torch.cat(t_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
@@ -216,6 +218,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
 
                     t_p_test.append(t_p.detach())
                     targets_test.append(target.detach())
+                    
+                    
 
                 t_p_test = torch.cat(t_p_test, dim=1).clamp(0, 1).permute(1,0,2)
                 mu_test = t_p_test.mean(dim=1)
@@ -225,6 +229,7 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                 mu_test_list.append(mu_test)
                 target_test_list.append(target_test)
                 
+
         # CQR
         avg_len_before_list = []
         avg_len_single_list = []
@@ -237,8 +242,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                         
             avg_len_single, avg_len_before = scale_bins_single_conformal(mu_test_list[i], q)
             
-            avg_cov_before = avg_cov(mu_test_list[i], q, target_test_list[i].mean(dim=1), before=True)
-            avg_cov_after_single = avg_cov(mu_test_list[i], q, target_test_list[i].mean(dim=1))
+            avg_cov_before = avg_cov(mu_test_list[i], q, target_test_list[i].unsqueeze(1).mean(dim=1), before=True)
+            avg_cov_after_single = avg_cov(mu_test_list[i], q, target_test_list[i].unsqueeze(1).mean(dim=1))
             
             avg_len_before_list.append(avg_len_before.cpu())
             avg_len_single_list.append(avg_len_single.cpu())

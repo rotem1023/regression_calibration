@@ -129,12 +129,12 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
     base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:0")
     iters = 20
     
-    alpha = 0.05
+    alpha = 0.1
     
-    model = BreastPathQModel(base_model, out_channels=2).to(device)
+    model = BreastPathQModel(base_model, out_channels=1).to(device)
 
     # TODO: load checkpoint 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
@@ -209,6 +209,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                     vars_calib.append(var_bayesian.detach())
                     logvars_calib.append(logvar.detach())
                     targets_calib.append(target.detach())
+                    break
+
             
             
             y_p_calib = torch.cat(y_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
@@ -219,7 +221,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
             target_calib = torch.cat(targets_calib, dim=0)
             
             err_calib = (target_calib-mu_calib).pow(2).mean(dim=1, keepdim=True).sqrt()
-            errvar_calib = (y_p_calib-target_calib.unsqueeze(1).repeat(1,25,1)).pow(2).mean(dim=(1,2)).unsqueeze(-1)
+            errvar_calib = (y_p_calib - target_calib.view(-1, 1, 1).repeat(1, 25, 1)).pow(2).mean(dim=(1, 2)).unsqueeze(-1)
+            # errvar_calib = (y_p_calib-target_calib.unsqueeze(1).repeat(1,25,1)).pow(2).mean(dim=(1,2)).unsqueeze(-1)
 
             uncertainty = 'aleatoric'
 
@@ -259,6 +262,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                     vars_test.append(var_bayesian.detach())
                     logvars_test.append(logvar.detach())
                     targets_test.append(target.detach())
+                    break
+
 
                 y_p_test = torch.cat(y_p_test, dim=1).clamp(0, 1).permute(1,0,2)
                 mu_test = y_p_test.mean(dim=1)
@@ -275,14 +280,14 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                 target_test_list.append(target_test)
                 
         err_test = [(target_test-mu_test).pow(2).mean(dim=1, keepdim=True).sqrt() for target_test, mu_test in zip(target_test_list, mu_test_list)]
-        errvar_test = [(y_p_test-target_test.unsqueeze(1).repeat(1,25,1)).pow(2).mean(dim=(1,2)).unsqueeze(-1) for target_test, y_p_test in zip(target_test_list, y_p_test_list)]
+        # errvar_test = [(y_p_test-target_test.unsqueeze(1).repeat(1,25,1)).pow(2).mean(dim=(1,2)).unsqueeze(-1) for target_test, y_p_test in zip(target_test_list, y_p_test_list)]
 
         uncert_aleatoric_test = [logvar_test.exp().mean(dim=1, keepdim=True) for logvar_test in logvar_test_list]
         uncert_epistemic_test = [var_test.mean(dim=1, keepdim=True) for var_test in var_test_list]
 
         if uncertainty == 'aleatoric':
             uncert_test = [uncert_aleatoric_t.sqrt().clamp(0, 1) for uncert_aleatoric_t in uncert_aleatoric_test]
-            uncert_test_laves = [(u_a_t + u_e_t).sqrt().clamp(0, 1) for u_a_t, u_e_t in zip(uncert_aleatoric_test, uncert_epistemic_test)]
+            # uncert_test_laves = [(u_a_t + u_e_t).sqrt().clamp(0, 1) for u_a_t, u_e_t in zip(uncert_aleatoric_test, uncert_epistemic_test)]
         elif uncertainty == 'epistemic':
             uncert_test = [uncert_epistemic_t.sqrt().clamp(0, 1) for uncert_epistemic_t in uncert_epistemic_test]
         else:
@@ -297,10 +302,10 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
         avg_cov_after_single_list = []
         avg_cov_after_single_list_gc = []
         
-        target_calib = target_calib.mean(dim=1, keepdim=True)
+        target_calib = target_calib.unsqueeze(1).mean(dim=1, keepdim=True)
         mu_calib = mu_calib.mean(dim=1, keepdim=True)
         mu_test_list = [mu_test.mean(dim=1, keepdim=True) for mu_test in mu_test_list]
-        target_test_list = [target_test.mean(dim=1, keepdim=True) for target_test in target_test_list]
+        target_test_list = [target_test.unsqueeze(1).mean(dim=1, keepdim=True) for target_test in target_test_list]
 
         for i in range(len(err_test)):
             q = set_scaler_conformal(target_calib, mu_calib, uncert_calib, err_calib=err_calib, gc=False, alpha=alpha)

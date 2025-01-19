@@ -25,25 +25,25 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=500,
+          epochs=52,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=1,
-          level=1):
+          gpu=0,
+          level=4):
     print("Current PID:", os.getpid())
 
 
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     assert likelihood in ['gaussian', 'laplacian']
     assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar']
-    assert gpu in [0, 1]
+    assert gpu in [0, 1, 2,3]
 
     device = torch.device("cuda:"+str(gpu) if torch.cuda.is_available() else "cpu")
     print("data_set =", dataset)
@@ -142,7 +142,7 @@ def train(base_model= 'efficientnetb4',
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
     elif dataset == 'lumbar':
         in_channels = 3
-        out_channels = 2
+        out_channels = 1
         pretrained = True
 
         
@@ -255,7 +255,9 @@ def train(base_model= 'efficientnetb4',
             targets_train = torch.cat(targets_train, dim=0)
             mu_train = torch.cat(mu_train, dim=0)
             logvar_train = torch.cat(logvar_train, dim=0)
-            mse_train = metric(mu_train, targets_train)
+            # mse_train = metric(mu_train, targets_train)
+            mse_train = metric(mu_train, targets_train.unsqueeze(-1))
+
 
             model.eval()
             epoch_valid_loss = []
@@ -311,10 +313,10 @@ def train(base_model= 'efficientnetb4',
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-        save_current_snapshot(base_model, likelihood, dataset_name, e, model, optimizer_net, train_losses, valid_losses)
+        save_current_snapshot(base_model, likelihood, dataset_name, e, model, optimizer_net, train_losses, valid_losses, 0, 0)
 
     except KeyboardInterrupt:
-        save_current_snapshot(base_model, likelihood, dataset_name, e-1, model, optimizer_net, train_losses, valid_losses)
+        save_current_snapshot(base_model, likelihood, dataset_name, e-1, model, optimizer_net, train_losses, valid_losses, 0, 0)
 
 
 if __name__ == '__main__':

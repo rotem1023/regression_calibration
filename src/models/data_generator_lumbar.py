@@ -72,13 +72,22 @@ class LumbarDataset(Dataset):
         x = self.to_pil_and_resize(x, self._scale)
 
         y = np.array(split_val[1:], dtype=np.float32)
+        y = (y[0]+ y[1]/2)
 
         # horizontal flipping
-        if self._augment and np.random.rand() > 0.5:
-            x = transforms.functional.hflip(x)
-            y[1] = 1 - y[1]
+        # if self._augment and np.random.rand() > 0.5:
+        #     x = transforms.functional.hflip(x)
+        #     y[1] = 1 - y[1]
 
         trans_augment = []
+        # if self._augment:
+        #     trans_augment.append(transforms.RandomApply([transforms.ColorJitter(brightness=0.2, contrast=0.2,
+        #                                                                         saturation=0.2, hue=0.1)], p=0.5))
+
+        # trans_always2 = [
+        #     transforms.ToTensor(),
+        # ]
+        # trans = transforms.Compose(trans_augment+trans_always2)
         if self._augment:
             trans_augment.append(transforms.RandomApply([transforms.ColorJitter(brightness=0.2, contrast=0.2,
                                                                                 saturation=0.2, hue=0.1)], p=0.5))
@@ -86,7 +95,7 @@ class LumbarDataset(Dataset):
         trans_always2 = [
             transforms.ToTensor(),
         ]
-        trans = transforms.Compose(trans_augment+trans_always2)
+        trans = transforms.Compose(trans_augment + trans_always2)
 
         x = trans(x)
 
