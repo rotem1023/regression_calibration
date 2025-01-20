@@ -106,7 +106,7 @@ def main():
         image_path = f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking/Dataset3/frames/{image_name}.png"
         eval_single(data_dir, image_path)
     else:
-        mix_indices = False
+        mix_indices = True
         save_params = False
         load_params = False
         save_test = True
@@ -117,12 +117,12 @@ def main():
 def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
     # efficientnetb4, densenet201
     base_model = 'densenet201'
-    level = 3
+    level = 1
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     iters = 20
-    alpha = 0.1
+    alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
@@ -130,10 +130,7 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    try:
-        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_cqr_best_new.pth.tar', map_location=device)
-    except:
-        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_0.05_cqr_best_new.pth.tar', map_location=device)
+    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_new_trans.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     
     batch_size = 64

@@ -5,6 +5,7 @@ from torchvision import transforms
 import pandas as pd
 from tqdm import tqdm
 import os
+import math
 
 
 class LumbarDataset(Dataset):
@@ -72,7 +73,8 @@ class LumbarDataset(Dataset):
         x = self.to_pil_and_resize(x, self._scale)
 
         y = np.array(split_val[1:], dtype=np.float32)
-        y = (y[0]+ y[1]/2)
+        y = math.log2(y[0]) -  math.log2(y[1])
+        
 
         # horizontal flipping
         # if self._augment and np.random.rand() > 0.5:

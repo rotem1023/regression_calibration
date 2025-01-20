@@ -109,7 +109,7 @@ def scale_bins_single_conformal(uncert_test, q):
 def main():
     print("Current PID:", os.getpid())
     eval_single_img = False
-    level = 3
+    level = 1
     data_dir = f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking"
     
     if eval_single_img:
@@ -117,7 +117,7 @@ def main():
         image_path = f"C:\lior\studies\master\projects\calibration/regression calibration/Tracking_Robotic_Testing/Tracking/Dataset3/frames/{image_name}.png"
         eval_single(data_dir, image_path)
     else:
-        mix_indices = False
+        mix_indices = True
         save_params = False
         load_params = False
         save_test = True
@@ -133,6 +133,7 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
     iters = 20
     
     alpha = 0.1
+    print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
     model = BreastPathQModel(base_model, out_channels=1).to(device)
 
@@ -140,7 +141,7 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     
-    checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
+    checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot_trans.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     
     batch_size = 64
@@ -209,8 +210,7 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                     vars_calib.append(var_bayesian.detach())
                     logvars_calib.append(logvar.detach())
                     targets_calib.append(target.detach())
-                    break
-
+                    
             
             
             y_p_calib = torch.cat(y_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
@@ -261,8 +261,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                     y_p_test.append(y_p.detach())
                     vars_test.append(var_bayesian.detach())
                     logvars_test.append(logvar.detach())
-                    targets_test.append(target.detach())
-                    break
+                    targets_test.append(target.detach())       
+                                 
 
 
                 y_p_test = torch.cat(y_p_test, dim=1).clamp(0, 1).permute(1,0,2)

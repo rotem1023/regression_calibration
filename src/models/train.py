@@ -25,18 +25,18 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=52,
+          epochs=50,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
           gpu=0,
-          level=4):
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -248,6 +248,7 @@ def train(base_model= 'densenet201',
                 writer.add_scalar('train/mse', metric(mu, targets), batch_counter)
                 writer.add_scalar('train/var', logvar.exp().mean(), batch_counter)
                 batch_counter += 1
+                
 
             epoch_train_loss = np.mean(epoch_train_loss)
             lr_scheduler_net.step(epoch_train_loss)
@@ -280,6 +281,7 @@ def train(base_model= 'densenet201',
                     writer.add_scalar('valid/mse', metric(mu, targets), batch_counter_valid)
                     writer.add_scalar('valid/var', logvar.exp().mean(), batch_counter_valid)
                     batch_counter_valid += 1
+                    
 
             epoch_valid_loss = np.mean(epoch_valid_loss)
             targets_valid = torch.cat(targets_valid, dim=0)
@@ -300,7 +302,7 @@ def train(base_model= 'densenet201',
 
             if is_best:
                 os.makedirs('./snapshots', exist_ok=True)
-                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best.pth.tar"
+                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best_trans.pth.tar"
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,

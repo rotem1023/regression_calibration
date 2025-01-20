@@ -44,7 +44,7 @@ def compute_coverage_len(y_test, y_lower, y_upper):
     avg_length : float, average length
 
     """
-    y_test = y_test.mean(dim=1)
+    y_test = y_test.unsqueeze(1).mean(dim=1)
     in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
     coverage = in_the_range / len(y_test) * 100
     avg_length = torch.mean(abs(y_upper - y_lower))
@@ -83,7 +83,7 @@ class AllQuantileLoss(nn.Module):
         assert preds.size(0) == target.size(0)
         losses = []
         
-        target = target.mean(dim=1)
+        target = target.unsqueeze(1).mean(dim=1)
 
         for i, q in enumerate(self.quantiles):
             errors = target - preds[:, i]
@@ -106,12 +106,12 @@ def train(base_model,
           dataset,
           batch_size=32,
           init_lr=0.001,
-          epochs=500,
+          epochs=50,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
+          gpu=3,
           gamma=0.5, 
           level = 1,
           alpha= 0.1):
@@ -356,6 +356,7 @@ def train(base_model,
 
                 writer.add_scalar('train/loss', loss.item(), batch_counter)
                 batch_counter += 1
+                
 
             epoch_train_loss = np.mean(epoch_train_loss)
             lr_scheduler_net.step(epoch_train_loss)
@@ -385,6 +386,7 @@ def train(base_model,
 
                     writer.add_scalar('valid/loss', loss_valid.item(), batch_counter_valid)
                     batch_counter_valid += 1
+                    
 
             epoch_valid_loss = np.mean(epoch_valid_loss)
             targets_valid = torch.cat(targets_valid, dim=0)
@@ -414,7 +416,7 @@ def train(base_model,
 
             if is_best:
                 # filename = f"./snapshots/{base_model}_{likelihood}_{dataset}_best.pth.tar"
-                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_new.pth.tar'
+                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_trans.pth.tar'
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
@@ -429,7 +431,7 @@ def train(base_model,
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_new.pth.tar'
+            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new_trans.pth.tar'
             print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}. filename: {filename}")
             torch.save({
                     'epoch': e,
@@ -441,7 +443,7 @@ def train(base_model,
                     'avg_len': avg_length
                 }, filename)
     except KeyboardInterrupt:
-        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_new.pth.tar'
+        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new_trans.pth.tar'
         print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}, filename: {filename}")
         torch.save({
                     'epoch': e,
@@ -465,8 +467,8 @@ if __name__ == '__main__':
     dataset = 'lumbar'
     # efficientnetb4 densenet201
     base_model = 'densenet201'
-    level = 5
-    epochs=52
+    level = 1
+    epochs=50
     alpha=0.05
     GPU=3
     
