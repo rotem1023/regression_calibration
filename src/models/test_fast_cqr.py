@@ -30,8 +30,8 @@ import load_trained_models
 # CQR
 
 def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
-    y_lower = mu_calib[:,0]
-    y_upper = mu_calib[:,-1]
+    y_lower = mu_calib[:,0].unsqueeze(1)
+    y_upper = mu_calib[:,-1].unsqueeze(1)
     error_low = y_lower - target_calib
     error_high = target_calib - y_upper
     err = torch.maximum(error_high, error_low)
@@ -43,9 +43,9 @@ def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
     return q
 
 
-def calc_stats(q, target_calib, mu_calib):
-    length = torch.mean(abs((mu_calib[:, 1] + q) - (mu_calib[:, 0] - q)))
-    coverage = avg_cov(mu_calib, q, target_calib.unsqueeze(1).mean(dim=1))
+def calc_stats(q, target, mu):
+    length = torch.mean(abs((mu[:, 1] + q) - (mu[:, 0] - q)))
+    coverage = avg_cov(mu, q, target.unsqueeze(1).mean(dim=1))
     print(f'Length: {length}, Coverage: {coverage}')
     return length, coverage
 
@@ -63,9 +63,9 @@ def get_scaler_conformal(target_calib, mu_calib, alpha):
 
 def avg_cov(mu, q, target, before=False):
     if before:
-        in_the_range = torch.sum((target >= mu[:, 0]) & (target <= mu[:, 1]))
+        in_the_range = torch.sum((target.squeeze(-1)  >= mu[:, 0]) & (target.squeeze(-1)  <= mu[:, 1]))
     else:
-        in_the_range = torch.sum((target >= (mu[:, 0] - q)) & (target <= (mu[:, 1] + q)))
+        in_the_range = torch.sum((target.squeeze(-1)  >= (mu[:, 0] - q)) & (target.squeeze(-1)  <= (mu[:, 1] + q)))
     coverage = in_the_range / len(target) * 100
     return coverage
 
@@ -74,7 +74,6 @@ def avg_cov(mu, q, target, before=False):
 def get_arrays(data_loader, model, device):
     t_p_s = []
     targets_s = []
-    second = False
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
@@ -84,9 +83,6 @@ def get_arrays(data_loader, model, device):
             t_p_s.append(t_p.detach())
 
             targets_s.append(target.detach()) 
-            if second:
-                break
-            second = True
 
                             
                     
@@ -178,13 +174,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
-        y_p_calib_original,
-        targets_calib_original
+        y_p_calib_original.cpu(),
+        targets_calib_original.cpu()
     ]
 
     test_arrays = [
-        y_p_test_original, 
-        targets_test_original
+        y_p_test_original.cpu(), 
+        targets_test_original.cpu()
     ]
 
     q_all = []
@@ -204,8 +200,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             calib_shuffled, test_shuffled = shuffle_arrays(calib_arrays, test_arrays)
             t_p_calib, targets_calib = calib_shuffled
             t_p_test, targets_test = test_shuffled
+            
+            
         
-                    
         # validation set   
         t_p_calib = t_p_calib.clamp(0, 1)
         target_calib = targets_calib.unsqueeze(1)
