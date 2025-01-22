@@ -210,6 +210,7 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                     vars_calib.append(var_bayesian.detach())
                     logvars_calib.append(logvar.detach())
                     targets_calib.append(target.detach())
+                    break
                     
             
             
@@ -261,7 +262,8 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
                     y_p_test.append(y_p.detach())
                     vars_test.append(var_bayesian.detach())
                     logvars_test.append(logvar.detach())
-                    targets_test.append(target.detach())       
+                    targets_test.append(target.detach())   
+                    break    
                                  
 
 

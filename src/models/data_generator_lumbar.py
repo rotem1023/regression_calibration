@@ -73,7 +73,7 @@ class LumbarDataset(Dataset):
         x = self.to_pil_and_resize(x, self._scale)
 
         y = np.array(split_val[1:], dtype=np.float32)
-        y = math.log2(y[0]) -  math.log2(y[1])
+        y = (y[0] + y[1]) / 2
         
 
         # horizontal flipping

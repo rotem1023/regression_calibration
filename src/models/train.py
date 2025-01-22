@@ -36,7 +36,7 @@ def train(base_model= 'efficientnetb4',
           lr_patience=20,
           weight_decay=1e-8,
           gpu=0,
-          level=1):
+          level=3):
     print("Current PID:", os.getpid())
 
 
@@ -156,8 +156,8 @@ def train(base_model= 'efficientnetb4',
         print("len(data_set_train)", len(data_set_train))
         print("len(data_set_valid)", len(data_set_valid))
 
-        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
-        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=32, shuffle=True)
     elif dataset == 'oct':
         in_channels = 3
         out_channels = 6
@@ -191,6 +191,7 @@ def train(base_model= 'efficientnetb4',
 
     model = BreastPathQModel(base_model, in_channels=in_channels, out_channels=out_channels,
                              pretrained=pretrained).to(device)
+
     if not pretrained:
         kaiming_normal_init(model)
 
@@ -302,7 +303,7 @@ def train(base_model= 'efficientnetb4',
 
             if is_best:
                 os.makedirs('./snapshots', exist_ok=True)
-                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best_trans.pth.tar"
+                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best.pth.tar"
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
@@ -315,7 +316,7 @@ def train(base_model= 'efficientnetb4',
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-        save_current_snapshot(base_model, likelihood, dataset_name, e, model, optimizer_net, train_losses, valid_losses, 0, 0)
+            save_current_snapshot(base_model, likelihood, dataset_name, e, model, optimizer_net, train_losses, valid_losses, 0, 0)
 
     except KeyboardInterrupt:
         save_current_snapshot(base_model, likelihood, dataset_name, e-1, model, optimizer_net, train_losses, valid_losses, 0, 0)

@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 
 __all__ = ['leaky_relu1',
            'normal_init',
@@ -33,6 +34,19 @@ def kaiming_uniform_init(m):
     if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear):
         torch.nn.init.kaiming_uniform_(m.weight.data)
 
+def distance_loss(predicted_distances, y, y_hat):
+    # Compute true d+ and d-
+    true_d_plus = torch.clamp(y - y_hat, min=0)
+    true_d_minus = torch.clamp(y_hat - y, min=0)
+
+    # Predicted d+ and d-
+    pred_d_plus, pred_d_minus = predicted_distances[:, 0], predicted_distances[:, 1]
+
+    # MSE loss for both distances
+    loss_d_plus = nn.functional.mse_loss(pred_d_plus, true_d_plus)
+    loss_d_minus = nn.functional.mse_loss(pred_d_minus, true_d_minus)
+
+    return loss_d_plus + loss_d_minus
 
 def nll_criterion_gaussian(mu, logvar, target, reduction='mean'):
     # loss = (torch.exp(-logvar) * torch.pow(target-mu, 2) + logvar)
@@ -46,7 +60,7 @@ def nll_criterion_laplacian(mu, logsigma, target, reduction='mean'):
 
 
 def save_current_snapshot(base_model, qhigh, dataset, e, model, optimizer_net, train_losses, valid_losses, coverage, avg_length):
-    filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/{base_model}_{qhigh}_{dataset}_snapshot_trans.pth.tar'
+    filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/{base_model}_{qhigh}_{dataset}_snapshot.pth.tar'
     print(f"Saving at epoch: {e}")
     torch.save({
         'epoch': e,
@@ -60,6 +74,8 @@ def save_current_snapshot(base_model, qhigh, dataset, e, model, optimizer_net, t
     print(f"Saved file: {filename}")
     
 import torch
+
+
 
 
 def avg_len(uncert, q, n_bins=15, outlier=0.0, range=None, single=False):

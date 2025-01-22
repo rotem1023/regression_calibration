@@ -113,7 +113,7 @@ def train(base_model,
           weight_decay=1e-8,
           gpu=3,
           gamma=0.5, 
-          level = 1,
+          level = 2,
           alpha= 0.1):
           
     qlow = alpha/2
@@ -416,7 +416,7 @@ def train(base_model,
 
             if is_best:
                 # filename = f"./snapshots/{base_model}_{likelihood}_{dataset}_best.pth.tar"
-                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best_trans.pth.tar'
+                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best.pth.tar'
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
@@ -431,7 +431,7 @@ def train(base_model,
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new_trans.pth.tar'
+            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new.pth.tar'
             print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}. filename: {filename}")
             torch.save({
                     'epoch': e,
@@ -443,7 +443,7 @@ def train(base_model,
                     'avg_len': avg_length
                 }, filename)
     except KeyboardInterrupt:
-        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new_trans.pth.tar'
+        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new.pth.tar'
         print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}, filename: {filename}")
         torch.save({
                     'epoch': e,
@@ -466,11 +466,11 @@ if __name__ == '__main__':
     
     dataset = 'lumbar'
     # efficientnetb4 densenet201
-    base_model = 'densenet201'
-    level = 1
+    base_model = 'efficientnetb4'
+    level = 2
     epochs=50
-    alpha=0.05
-    GPU=3
+    alpha=0.1
+    GPU=2
     
     print("Process ID: ", os.getpid())
     

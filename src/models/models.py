@@ -4,8 +4,8 @@ from efficientnet_pytorch import EfficientNet
 from resnet import resnet50, resnet101
 from densenet import densenet121, densenet201
 from utils import leaky_relu1
-import timm
-import torch.nn.functional as F
+import torch.nn as nn
+import torch.optim as optim
 
 
 class BreastPathQModel(torch.nn.Module):
@@ -121,35 +121,32 @@ class BreastPathQModel(torch.nn.Module):
         
 
 
+class DistancePredictor(nn.Module):
+    def __init__(self, base_model='resnet50'):
+        super(DistancePredictor, self).__init__()
+        if base_model == 'resnet50':
+            self.base_model = resnet50(pretrained=True)
+        elif base_model == 'densenet121':
+            self.base_model = densenet121(pretrained=True)
+            num_features = self.base_model.classifier.in_features  # For DenseNet, it's 'classifier'
+            self.base_model.classifier = nn.Linear(num_features, 1)
+        else:
+            raise NotImplementedError(f"Only resnet50 is supported, got {base_model}")
 
-# class BreastPathQModel(torch.nn.Module):
-#     def __init__(self, base_model, in_channels=3, out_channels=1, dropout_rate=0.2, pretrained=False):
-#         super().__init__()
+        # Modify the final layer of resnet50 to output a single value (y_hat)
+        num_features = self.base_model.fc.in_features
+        self.base_model.fc = nn.Linear(num_features, 2)
+        nn.init.xavier_uniform_(self.base_model.fc.weight)
+        nn.init.constant_(self.base_model.fc.bias, 0.1)
 
-#         assert in_channels == 3, "EfficientNet-B4 requires 3 input channels"
-
-#         self._base_model = timm.create_model('efficientnet_b4', pretrained=pretrained, in_chans=in_channels, num_classes=0)
-#         fc_in_features = 1792
-
-#         self._fc_mu1 = torch.nn.Linear(fc_in_features, fc_in_features)
-#         self._fc_mu2 = torch.nn.Linear(fc_in_features, out_channels)
-#         self._fc_logvar1 = torch.nn.Linear(fc_in_features, fc_in_features)
-#         self._fc_logvar2 = torch.nn.Linear(fc_in_features, 1)
-
-#         self._dropout_T = 25
-#         self._dropout_p = 0.5
-
-#     def forward(self, x, dropout=False):
-#         features = self._base_model(x)
-#         features = features.view(features.size(0), -1)  # Flatten
-
-#         mu_temp = F.leaky_relu(self._fc_mu1(features))
-#         mu = self._fc_mu2(mu_temp)
-
-#         logvar_temp = F.leaky_relu(self._fc_logvar1(features))
-#         logvar = self._fc_logvar2(logvar_temp)
-
-#         if dropout:
-#             mu = F.dropout(mu, p=self._dropout_p, training=True)
-
-#         return mu, logvar, features
+        # Add a new layer to predict d+ and d-
+        # self.fc = nn.Linear(1, 2)  # Predict two distances
+        # self.relu = nn.ReLU()  # Ensure non-negative outputs
+        self.relu = nn.Softplus(beta=1)
+    
+    def forward(self, x):
+        distances = self.base_model(x)  # Directly get two outputs (d+ and d-)
+        distances = self.relu(distances)  # Apply ReLU to ensure non-negative predictions
+        epsilon = 1e-6  # Add a small positive constant for numerical stability
+        distances = distances + epsilon
+        return distances

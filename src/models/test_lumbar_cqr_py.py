@@ -130,7 +130,7 @@ def eval_test_set(level =1, save_params=False, load_params=False, mix_indices=Tr
 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_new_trans.pth.tar', map_location=device)
+    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_news.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     
     batch_size = 64
