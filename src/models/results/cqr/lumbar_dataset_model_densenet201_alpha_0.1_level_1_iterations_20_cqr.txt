@@ -1,3 +1,0 @@
-q mean: 0.3998, q std: 0.0066
-avg_len mean: 1.1841, avg_len std: 0.0131
-avg_cov mean: 90.2059, avg_cov std: 0.8776

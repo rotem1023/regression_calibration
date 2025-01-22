@@ -142,7 +142,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     iters = 20
-    level = 1
+    level = 2
     alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
@@ -170,6 +170,14 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     y_p_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
     y_p_test_original, targets_test_original = get_arrays(test_loader, model, device)
+    
+    # save arrays
+    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr"
+    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
+    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
+    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
+    
     
     
     # Calibration and test arrays (from your original code)
@@ -246,8 +254,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     print(f"test coverage's {cov_test_sets}")
 
     # Define the output file path
-    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results'
-    output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_after.txt"
+    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
+    output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
 
     # Open the file in append mode
     with open(f'{output_dir}/{output_file}', "a") as f:
@@ -280,18 +288,7 @@ def get_float(x):
     except:
         return x
   
-def to_pil_and_resize(x, scale):
-    w, h, _ = x.shape
-    new_size = (int(w * scale), int(h * scale))
 
-    trans_always1 = [
-        transforms.ToPILImage(),
-        transforms.Resize(new_size),
-    ]
-
-    trans = transforms.Compose(trans_always1)
-    x = trans(x)
-    return x
     
 
 

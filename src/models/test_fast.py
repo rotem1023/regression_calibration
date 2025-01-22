@@ -20,7 +20,6 @@ from models import BreastPathQModel, DistancePredictor
 from glob import glob
 import statistics
 import math
-import load_trained_models
 
 
     
@@ -28,18 +27,11 @@ import load_trained_models
 
 # CP
 
-def calc_optimal_q(target_calib, mu_calib, uncert_calib, err_calib=None, alpha=0.1, gc=False, single=False):
+def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 
-    if single:
-        s_t = torch.abs(target_calib-mu_calib)[:, 0].unsqueeze(-1) / uncert_calib
-    else:
-        s_t = torch.abs(target_calib-mu_calib) / uncert_calib
+    s_t = torch.abs(target_calib-mu_calib) / sd_calib
     if gc:
-        # q = 1.64485 * torch.sqrt((s_t**2).mean()).item()
-        # q = 1.64485 * s_t.median().item()
-        S = (err_calib**2 / uncert_calib**2).mean().sqrt()
-        # print(S)
-        # q = 1.64485 * torch.sqrt((s_t**2).mean()).item()
+        S = (s_t).mean().sqrt()
         if alpha == 0.1:
             q = 1.64485 * S.item()
         elif alpha == 0.05:
@@ -48,64 +40,23 @@ def calc_optimal_q(target_calib, mu_calib, uncert_calib, err_calib=None, alpha=0
             print("Choose another value of alpha!! (0.1 / 0.05)")
     else:
         s_t_sorted, _ = torch.sort(s_t, dim=0)
-        # q_index = math.ceil((len(s_t_sorted) + 1) * (1 - alpha))
         q_index = math.ceil((len(s_t_sorted)) * (1 - alpha))
-        q = s_t_sorted[q_index].item()
-        # q = torch.quantile(s_t, (1 - alpha))
-    
+        q = s_t_sorted[q_index].item()   
     return q
 
 # CP/GC prediction
 
-def set_scaler_conformal(target_calib, mu_calib, uncert_calib, err_calib=None, log=True, gc=False, alpha=0.1):
-    """
-    Tune single scaler for the model (using the validation set) with cross-validation on NLL
-    """
-        
-    if gc:
-        printed_type = 'GC'
-    else:
-        printed_type = 'CP'
-            
-    # Calculate optimal q using GC
-    q = calc_optimal_q(target_calib, mu_calib, uncert_calib, err_calib=err_calib, alpha=alpha, gc=gc)
-    
-    after_single_scaling_avg_len = avg_len(uncert_calib, q)
-    print('Optimal scaler {} (val): {:.3f}'.format(printed_type, q))
-    print('After single scaling- Avg Length {} (val): {}'.format(printed_type, after_single_scaling_avg_len))
-    
-    after_single_scaling_avg_cov = avg_cov(mu_calib, q * uncert_calib, target_calib)
-    print('After single scaling- Avg Cov {} (val): {}'.format(printed_type, after_single_scaling_avg_cov))
+def calc_stats(q, target, mu, sd):
+    lower = mu - q * sd
+    upper = mu + q * sd
+    length = torch.mean(abs(upper - lower))
+    coverage = avg_cov(lower, upper, target)
+    return length, coverage
 
-    return q
-
-def avg_len(uncert, q):
-    device = uncert.device
-    
-    avg_len = (2 * q * uncert).mean()
-
-    return avg_len
-
-def avg_cov(mu, uncert, target):
-    total_cov = 0.0
-    for mu_single, uncert_single, target_single in zip(mu, uncert, target):
-        if mu_single - uncert_single <= target_single <= mu_single + uncert_single:
-            total_cov += 1.0
-            
-    return total_cov / len(mu)
-
-def scale_bins_single_conformal(uncert_test, q):
-    
-    # Calculate Avg Length before temperature scaling
-    before_scaling_avg_len = (2 * uncert_test).mean()
-    print('Before scaling - Avg Length: %.3f' % (before_scaling_avg_len))
-        
-    # Calculate Avg Length after single scaling
-    after_single_scaling_avg_len = avg_len(uncert_test, q)
-    print('Optimal scaler: %.3f' % q)
-    print(f'After single scaling- Avg Length: {after_single_scaling_avg_len}')
-    
-    return after_single_scaling_avg_len, before_scaling_avg_len
+def avg_cov(lower, upper, target):
+    in_the_range = torch.sum((target  >= lower) & (target  <= upper)).item()
+    coverage = in_the_range / len(target) * 100
+    return coverage
 
 
 
@@ -124,11 +75,11 @@ def get_arrays(data_loader, model, device):
             y_p_s.append(y_p.detach())
             vars_s.append(var_bayesian.detach())
             logvars_s.append(logvar.detach())
-            targets_s.append(target.detach()) 
+            targets_s.append(target.detach())
 
                             
                     
-    return torch.cat(y_p_s), torch.cat(vars_s), torch.cat(logvars_s), torch.cat(targets_s)     
+    return torch.cat(y_p_s).cpu(), torch.cat(vars_s).cpu(), torch.cat(logvars_s).cpu(), torch.cat(targets_s).cpu()     
     
 import numpy as np
 import torch
@@ -259,122 +210,57 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         var_calib = vars_calib
         logvars_calib = logvars_calib
         logvar_calib = logvars_calib.mean(dim=1).unsqueeze(1)
+        var_calib  = logvar_calib.exp()
+        sd_calib = var_calib.sqrt()
         target_calib = targets_calib.unsqueeze(1)
 
-            
-        err_calib = (target_calib-mu_calib).pow(2).mean(dim=1, keepdim=True).sqrt()
-        uncertainty = 'aleatoric'
 
-        uncert_calib_aleatoric = logvar_calib.exp().mean(dim=1, keepdim=True)
-        uncert_calib_epistemic = var_calib.mean(dim=1, keepdim=True)
 
-        if uncertainty == 'aleatoric':
-            uncert_calib = uncert_calib_aleatoric.sqrt().clamp(0, 1)
-            uncert_calib_laves = (uncert_calib_aleatoric + uncert_calib_epistemic).sqrt().clamp(0, 1)  # total
-        elif uncertainty == 'epistemic':
-            uncert_calib = uncert_calib_epistemic.sqrt().clamp(0, 1)
-        else:
-            uncert_calib = (uncert_calib_aleatoric + uncert_calib_epistemic).sqrt().clamp(0, 1)  # total
-            
+
         
-        y_p_test_list = []
-        mu_test_list = []
-        var_test_list = []
-        logvars_test_list = []
-        logvar_test_list = []
-        target_test_list = []
-
         # test set
                                  
         y_p_test = y_p_test.clamp(0, 1).unsqueeze(1)
         mu_test = y_p_test.mean(dim=1)
-        var_test = vars_test
         logvars_test = logvars_test
         logvar_test = logvars_test.mean(dim=1).unsqueeze(1)
+        var_test = logvar_test.exp()
+        sd_test = var_test.sqrt()
         target_test = targets_test.unsqueeze(1)
-
-
-
-        y_p_test_list.append(y_p_test)
-        mu_test_list.append(mu_test)
-        var_test_list.append(var_test)
-        logvars_test_list.append(logvars_test)
-        logvar_test_list.append(logvar_test)
-        target_test_list.append(target_test)
-                
-        err_test = [(target_test-mu_test).pow(2).mean(dim=1, keepdim=True).sqrt() for target_test, mu_test in zip(target_test_list, mu_test_list)]
-
-        uncert_aleatoric_test = [logvar_test.exp().mean(dim=1, keepdim=True) for logvar_test in logvar_test_list]
-        uncert_epistemic_test = [var_test.mean(dim=1, keepdim=True) for var_test in var_test_list]
-
-        if uncertainty == 'aleatoric':
-            uncert_test = [uncert_aleatoric_t.sqrt().clamp(0, 1) for uncert_aleatoric_t in uncert_aleatoric_test]
-        elif uncertainty == 'epistemic':
-            uncert_test = [uncert_epistemic_t.sqrt().clamp(0, 1) for uncert_epistemic_t in uncert_epistemic_test]
-        else:
-            uncert_test = [(u_a_t + u_e_t).sqrt().clamp(0, 1) for u_a_t, u_e_t in zip(uncert_aleatoric_test, uncert_epistemic_test)]
-                
-        # CP/GC
-        avg_len_before_list = []
-        avg_len_single_list = []
-        avg_len_single_list_gc = []
-
-        avg_cov_before_list = []
-        avg_cov_after_single_list = []
-        avg_cov_after_single_list_gc = []
+            
+        q = calc_optimal_q(target_calib, mu_calib, sd_calib, alpha)
         
-        target_calib = target_calib.mean(dim=1, keepdim=True)
-        mu_calib = mu_calib.mean(dim=1, keepdim=True)
-        mu_test_list = [mu_test.mean(dim=1, keepdim=True) for mu_test in mu_test_list]
-        target_test_list = [target_test.mean(dim=1, keepdim=True) for target_test in target_test_list]
-
-        for i in range(len(err_test)):
-            
-            q = set_scaler_conformal(target_calib, mu_calib, uncert_calib, err_calib=err_calib, gc=False, alpha=alpha)
+        valid_length, valid_coverage = calc_stats(q, target_calib, mu_calib, sd_calib)
+        test_length, test_coverage = calc_stats(q, target_test, mu_test, sd_test)
                      
-            avg_len_single, avg_len_before = scale_bins_single_conformal(uncert_test[i], q)
             
-            avg_cov_before = avg_cov(mu_test_list[i], uncert_test[i], target_test_list[i])
-            avg_cov_after_single = avg_cov(mu_test_list[i], q * uncert_test[i], target_test_list[i])
-            
-            q_gc = set_scaler_conformal(target_calib, mu_calib, uncert_calib, err_calib=err_calib, gc=True, alpha=alpha)
+        q_gc = calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=True)
                      
-            avg_len_single_gc, _ = scale_bins_single_conformal(uncert_test[i], q_gc)
-            avg_cov_after_single_gc = avg_cov(mu_test_list[i], q_gc * uncert_test[i], target_test_list[i])
+        valid_length_gc, valid_coverage_gc = calc_stats(q_gc, target_calib, mu_calib, sd_calib)
+        test_length_gc, test_coverage_gc = calc_stats(q_gc, target_test, mu_test, sd_test)
             
+        print(f'q: {q}, q_gc: {q_gc}')
+        print(f'valid_length: {valid_length}, valid_coverage: {valid_coverage}')
+        print(f'test_length: {test_length}, test_coverage: {test_coverage}')
+        print(f'valid_length_gc: {valid_length_gc}, valid_coverage_gc: {valid_coverage_gc}')
+        print(f'test_length_gc: {test_length_gc}, test_coverage_gc: {test_coverage_gc}')
             
-            # my methods
-            
-            avg_len_before_list.append(avg_len_before.cpu())
-            avg_len_single_list.append(avg_len_single.cpu())
-            avg_len_single_list_gc.append(avg_len_single_gc.cpu())
-            
-            avg_cov_before_list.append(avg_cov_before)
-            avg_cov_after_single_list.append(avg_cov_after_single)
-            avg_cov_after_single_list_gc.append(avg_cov_after_single_gc)
-            
-        print(f'Test before, Avg Length:', torch.stack(avg_len_before_list).mean().item())
-        print(f'Test after single CP, Avg Length:', torch.stack(avg_len_single_list).mean().item())
-        print(f'Test after single GC, Avg Length:', torch.stack(avg_len_single_list_gc).mean().item())
 
-        print(f'Test before with Avg Cov:', torch.tensor(avg_cov_before_list).mean().item())
-        print(f'Test after single CP with Avg Cov:', torch.tensor(avg_cov_after_single_list).mean().item())
-        print(f'Test after single GC with Avg Cov:', torch.tensor(avg_cov_after_single_list_gc).mean().item())
-        
         q_all.append(get_float(q))
-        avg_len_all.append(get_float(torch.stack(avg_len_single_list).mean()))
-        avg_cov_all.append(get_float(torch.tensor(avg_cov_after_single_list).mean()))
+        avg_len_all.append(get_float(test_length))
+        avg_cov_all.append(get_float(test_coverage))
         
         q_all_gc.append(get_float(q_gc))
-        avg_len_all_gc.append(get_float(torch.stack(avg_len_single_list_gc).mean()))
-        avg_cov_all_gc.append(get_float(torch.tensor(avg_cov_after_single_list_gc).mean()))
+        avg_len_all_gc.append(get_float(test_length_gc))
+        avg_cov_all_gc.append(get_float(test_coverage_gc))
         
-    print(q_all)
-    print(avg_len_all)
-    print(avg_cov_all)
-    print(q_all_gc)
-    print(avg_len_all_gc)
-    print(avg_cov_all_gc)
+    print(f"q cp: {q_all}")
+    print(f"q gc: {q_all_gc}")
+    print(f"avg_len cp: {avg_len_all}")
+    print(f"avg_len gc: {avg_len_all_gc}")
+    print(f"avg_cov cp: {avg_cov_all}")
+    print(f"avg_cov gc: {avg_cov_all_gc}")
+
 
     # Define the output file path
     output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results'
