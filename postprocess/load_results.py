@@ -68,6 +68,67 @@ def create_histogram(base_model, level, group, norm_values, line, figsize=(4, 3)
     # Close the figure
     plt.close()
 
+
+import os
+import matplotlib.pyplot as plt
+
+def create_histogram(base_model, level, group, norm_values, line, figsize=(4, 3), bins=30, x_range=None, show=True, save_dir='./plots'):
+    """
+    Creates a histogram with white lines between bins and saves it as a file.
+
+    Parameters:
+        base_model (str): Name of the base model.
+        level (str): The level of analysis.
+        group (str): The group being analyzed.
+        norm_values (list or array): The values to plot in the histogram.
+        line (str): Line information to include in the filename.
+        figsize (tuple): Size of the figure (width, height).
+        bins (int): Number of bins for the histogram.
+        x_range (tuple): Range for the x-axis (e.g., (-3, 3)).
+        show (bool): Whether to display the plot.
+        save_dir (str): Directory to save the plot.
+    """
+    # Ensure the save directory exists
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Create a figure
+    plt.figure(figsize=figsize)
+
+    # Plot the histogram with white edges
+    plt.hist(
+        norm_values,
+        bins=bins,
+        range=x_range or (min(norm_values), max(norm_values)),
+        edgecolor='white',  # Add white lines between bins
+        linewidth=0.7       # Thickness of the edges
+    )
+
+    # Optionally set x-axis range
+    # if x_range:
+    plt.xlim((-3, 3))
+
+    # Add a bold frame to the plot
+    ax = plt.gca()
+    ax.spines['top'].set_linewidth(2)  # Top frame
+    ax.spines['right'].set_linewidth(2)  # Right frame
+    ax.spines['left'].set_linewidth(2)  # Left frame
+    ax.spines['bottom'].set_linewidth(2)  # Bottom frame
+
+
+    # Save the histogram to a file
+    filename = f'{base_model}_lumbar_{group}_{level}_histogram_{line}.png'
+    filepath = os.path.join(save_dir, filename)
+    plt.savefig(filepath, dpi=300)
+    print(f'Histogram saved to: {filepath}')
+
+    # Optionally show the histogram
+    if show:
+        plt.show()
+
+    # Close the figure
+    plt.close()
+
+
 def create_histograms(base_model, level, group, results):
     x_norm = get_x_norm(results)
     y_norm = get_y_norm(results)
