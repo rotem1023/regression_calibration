@@ -52,14 +52,30 @@ def parse_cp_results(base_model, alpha, level, results):
     g_results = Results(base_model, alpha, level, Stats(cqr_mean, cqr_std), Stats(cqr_len_mean, cqr_len_std), Stats(cqr_cov_mean, cqr_cov_std))
     return cp_results, g_results
 
+def parse_cqr_results(base_model, alpha, level, results):
+    results = results.split('\n')
+    q_avg, q_std = extract_numbers(results[0])
+    cqr_len_mean, cqr_len_std = extract_numbers(results[3])
+    cqr_cov_mean, cqr_cov_std = extract_numbers(results[4])
+
+    cqr_results = Results(base_model, alpha, level, Stats(q_avg, q_avg), Stats(cqr_len_mean, cqr_len_std), Stats(cqr_cov_mean, cqr_cov_std))
+    return cqr_results
+
 
 def load_cp_results(base_model, alpha, level):
     results_dir = _results_dir()
     # read txt file
-    with open(f'{results_dir}/lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_20.txt', 'r') as file:
+    with open(f'{results_dir}/lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_20_after.txt', 'r') as file:
         results = file.read()
     return parse_cp_results(base_model, alpha, level, results)
 
+
+def load_cqr_results(base_model, alpha, level):
+    results_dir = _results_dir()
+    # read txt file
+    with open(f'{results_dir}/cqr/lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_20.txt', 'r') as file:
+        results = file.read()
+    return parse_cqr_results(base_model, alpha, level, results)
 
 def write_line(file, model_name, g_results, cp_results):
     digits_len = 3
@@ -67,18 +83,20 @@ def write_line(file, model_name, g_results, cp_results):
     file.write(f'& {model_name} &')
     # g results
     file.write(f' {g_results.length.mean:.{digits_len}f} $\pm$ {g_results.length.std:.{digits_len}f} &')
-    file.write(f' {(100*g_results.coverage.mean):.{digits_cov}f} $\pm$ {(100*g_results.coverage.std):.{digits_cov}f} &')
+    file.write(f' {(g_results.coverage.mean):.{digits_cov}f} $\pm$ {(g_results.coverage.std):.{digits_cov}f} &')
     # cqr results
     file.write(f' NA $\pm$ NA &')
     file.write(f' NA $\pm$ NA &')
     # cp results
     file.write(f' {cp_results.length.mean:.{digits_len}f} $\pm$ {cp_results.length.std:.{digits_len}f} &')
-    file.write(f' {(100*cp_results.coverage.mean):.{digits_cov}f} $\pm$ {(100*cp_results.coverage.std):.{digits_cov}f} \\\\ \n')
+    file.write(f' {(cp_results.coverage.mean):.{digits_cov}f} $\pm$ {(cp_results.coverage.std):.{digits_cov}f} \\\\ \n')
 
 
 if __name__ == '__main__':
-    level = 1
-    alpha = 0.05
+    level = 2
+    alpha = 0.1
+    cqr_results_efficient = load_cqr_results('efficientnetb4', alpha, level)
+    cqr_results_dense = load_cqr_results('densenet201', alpha, level)
     cp_results_dense, g_results_dense = load_cp_results('densenet201', alpha, level)
     cp_results_efficient, g_results_efficient = load_cp_results('efficientnetb4', alpha, level)
     # write the results to a latex table
