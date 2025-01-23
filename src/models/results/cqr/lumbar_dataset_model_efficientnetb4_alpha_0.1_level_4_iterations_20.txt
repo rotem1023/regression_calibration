@@ -1,0 +1,6 @@
+q mean: 0.116004478931427, q std: 0.003943017946294164
+avg_len valid  mean: 0.4147219881415367, avg_len valid std: 0.007877553483388918
+avg_cov valid mean: 90.06085205078125, avg_cov std: 0.0
+avg_len test mean: 0.41568307876586913, avg_len test std: 0.00798173103498277
+avg_cov test mean: 89.58924942016601, avg_cov test std: 0.8026557705770327
+lumbar cqr, efficientnetb4, 0.1, 4
