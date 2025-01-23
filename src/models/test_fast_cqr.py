@@ -258,7 +258,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
 
     # Open the file in append mode
-    with open(f'{output_dir}/{output_file}', "a") as f:
+    with open(f'{output_dir}/{output_file}', "w") as f:
         # Print and save CP metrics
         print(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}')
         f.write(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}\n')

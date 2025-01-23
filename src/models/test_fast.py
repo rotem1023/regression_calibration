@@ -136,7 +136,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     device = torch.device("cuda:0")
     iters = 20
     level = 1
-    alpha = 0.05
+    alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
@@ -148,6 +148,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
+    print(f"epoch: {checkpoint['epoch']}")
     
     batch_size = 64
 
@@ -166,6 +167,16 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
     y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
     
+    # save test arrays
+    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"
+    
+    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
+    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_calib_original.cpu().numpy())  
+    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy()) 
+    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
+    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_test_original.cpu().numpy())
+
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
@@ -188,6 +199,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     q_all_gc = []
     avg_len_all_gc = []
     avg_cov_all_gc = []
+    
+    avg_len_valid_all = []
+    avg_cov_valid_all = []
+    avg_len_valid_all_gc = []
+    avg_cov_valid_all_gc = []
+    
     
 
 
@@ -254,6 +271,11 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         avg_len_all_gc.append(get_float(test_length_gc))
         avg_cov_all_gc.append(get_float(test_coverage_gc))
         
+        avg_len_valid_all.append(get_float(valid_length))
+        avg_cov_valid_all.append(get_float(valid_coverage))
+        avg_len_valid_all_gc.append(get_float(valid_length_gc))
+        avg_cov_valid_all_gc.append(get_float(valid_coverage_gc))
+        
     print(f"q cp: {q_all}")
     print(f"q gc: {q_all_gc}")
     print(f"avg_len cp: {avg_len_all}")
@@ -267,7 +289,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_after.txt"
 
     # Open the file in append mode
-    with open(f'{output_dir}/{output_file}', "a") as f:
+    with open(f'{output_dir}/{output_file}', "w") as f:
         # Print and save CP metrics
         print(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}')
         f.write(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}\n')
@@ -288,6 +310,20 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         print(f'avg_cov GC mean: {statistics.mean(avg_cov_all_gc)}, avg_cov GC std: {statistics.stdev(avg_cov_all_gc)}')
         f.write(f'avg_cov GC mean: {statistics.mean(avg_cov_all_gc)}, avg_cov GC std: {statistics.stdev(avg_cov_all_gc)}\n')
         
+        # save validation results
+        f.write(f"Validation results:\n")
+        print(f"avg_len validation mean: {statistics.mean(avg_len_valid_all)}, avg_len validation std: {statistics.stdev(avg_len_valid_all)}")
+        f.write(f"avg_len validation mean: {statistics.mean(avg_len_valid_all)}, avg_len validation std: {statistics.stdev(avg_len_valid_all)}\n")
+        
+        print(f"avg_cov validation mean: {statistics.mean(avg_cov_valid_all)}, avg_cov validation std: {statistics.stdev(avg_cov_valid_all)}")
+        f.write(f"avg_cov validation mean: {statistics.mean(avg_cov_valid_all)}, avg_cov validation std: {statistics.stdev(avg_cov_valid_all)}\n")
+        
+        print(f"avg_len validation mean GC: {statistics.mean(avg_len_valid_all_gc)}, avg_len validation std GC: {statistics.stdev(avg_len_valid_all_gc)}")
+        f.write(f"avg_len validation mean GC: {statistics.mean(avg_len_valid_all_gc)}, avg_len validation std GC: {statistics.stdev(avg_len_valid_all_gc)}\n")
+        
+        print(f"avg_cov validation mean GC: {statistics.mean(avg_cov_valid_all_gc)}, avg_cov validation std GC: {statistics.stdev(avg_cov_valid_all_gc)}")
+        f.write(f"avg_cov validation mean GC: {statistics.mean(avg_cov_valid_all_gc)}, avg_cov validation std GC: {statistics.stdev(avg_cov_valid_all_gc)}\n")        
+        
                  
         # Print and save additional info
         print(f"lumbar, {base_model}, {alpha}, {level}")
@@ -300,18 +336,6 @@ def get_float(x):
     except:
         return x
   
-def to_pil_and_resize(x, scale):
-    w, h, _ = x.shape
-    new_size = (int(w * scale), int(h * scale))
-
-    trans_always1 = [
-        transforms.ToPILImage(),
-        transforms.Resize(new_size),
-    ]
-
-    trans = transforms.Compose(trans_always1)
-    x = trans(x)
-    return x
     
 
 

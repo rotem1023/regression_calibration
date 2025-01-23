@@ -35,8 +35,8 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=3,
-          level=2):
+          gpu=2,
+          level=3):
     print("Current PID:", os.getpid())
 
 
@@ -57,6 +57,7 @@ def train(base_model= 'densenet201',
     print("lr_patience =", lr_patience)
     print("weight_decay =", weight_decay)
     print("device =", device)
+    print(f"level: {level}")
 
     writer = SummaryWriter(comment=f"_{dataset}_{base_model}_{likelihood}")
 
@@ -191,6 +192,19 @@ def train(base_model= 'densenet201',
 
     model = BreastPathQModel(base_model, in_channels=in_channels, out_channels=out_channels,
                              pretrained=pretrained).to(device)
+    
+    
+    models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
+
+    # checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot.pth.tar', map_location=device)
+    # model.load_state_dict(checkpoint['state_dict'])
+    # epochs_finsihed = checkpoint['epoch']
+    # epochs = epochs - epochs_finsihed
+    # if epochs < 2:
+    #     print("epochs < 2")
+    #     return
+    # print(f"epochs to finsih: {epochs}")
+    
 
     if not pretrained:
         kaiming_normal_init(model)

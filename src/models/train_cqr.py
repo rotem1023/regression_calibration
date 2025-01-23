@@ -141,6 +141,7 @@ def train(base_model,
     print("weight_decay =", weight_decay)
     print("device =", device)
     print("qhigh =", qhigh)
+    print(f"level: {level}")
 
     writer = SummaryWriter(comment=f"_{dataset}_{base_model}_{gamma}")
 
@@ -276,30 +277,17 @@ def train(base_model,
         assert False
 
 
-    model = BreastPathQModel(base_model, in_channels=in_channels, out_channels=out_channels,
-                             pretrained=pretrained).to(device)
-    # if use_gauss_model:
-    #     model = BreastPathQModelGauss(base_model, in_channels=in_channels, out_channels=out_channels,
-    #                             pretrained=pretrained).to(device)
-    #     if gauss_pretrained:
-    #         if dataset == 'boneage':
-    #             if base_model == 'densenet201':
-    #                 gauss_ckpt = "C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\densenet201_gaussian_boneage_493.pth.tar"
-    #             elif base_model == 'efficientnetb4':
-    #                 gauss_ckpt = "C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\efficientnetb4_gaussian_boneage_499.pth.tar"
-            
-    #         checkpoint = torch.load(gauss_ckpt, map_location=device)
-    #         model.load_state_dict(checkpoint['state_dict'])
-            
-    #         if gauss_freeze:
-    #             for name, param in model.named_parameters():
-    #                 if name.split('.')[0] == '_base_model':
-    #                     param.requires_grad = False
-                        
-    #             model._modules['_base_model'].eval()
-    # else:
-    #     model = BreastPathQModel(base_model, in_channels=in_channels, out_channels=2,
-    #                             pretrained=pretrained).to(device)
+    model = BreastPathQModel(base_model, out_channels=2).to(device)
+    models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
+
+    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_new.pth.tar', map_location=device)
+    model.load_state_dict(checkpoint['state_dict'])
+    epochs_finsihed = checkpoint['epoch']
+    epochs = epochs - epochs_finsihed
+    if epochs < 2:
+        print("epochs < 2")
+        return
+    print(f"epochs to finsih: {epochs}")
     
     if not pretrained:
         kaiming_normal_init(model)
@@ -466,13 +454,14 @@ if __name__ == '__main__':
     
     dataset = 'lumbar'
     # efficientnetb4 densenet201
-    base_model = 'efficientnetb4'
-    level = 2
-    epochs=50
-    alpha=0.1
-    GPU=2
+    base_model = 'densenet201'
+    level = 3
+    epochs=25
+    alpha=0.05
+    GPU=3
     
     print("Process ID: ", os.getpid())
+
     
     train(base_model, dataset, batch_size=BS,
           init_lr=LR,
