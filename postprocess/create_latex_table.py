@@ -77,7 +77,7 @@ def load_cqr_results(base_model, alpha, level):
         results = file.read()
     return parse_cqr_results(base_model, alpha, level, results)
 
-def write_line(file, model_name, g_results, cp_results):
+def write_line(file, model_name, g_results, cp_results, cqr_results):
     digits_len = 3
     digits_cov = 2
     file.write(f'& {model_name} &')
@@ -85,15 +85,17 @@ def write_line(file, model_name, g_results, cp_results):
     file.write(f' {g_results.length.mean:.{digits_len}f} $\pm$ {g_results.length.std:.{digits_len}f} &')
     file.write(f' {(g_results.coverage.mean):.{digits_cov}f} $\pm$ {(g_results.coverage.std):.{digits_cov}f} &')
     # cqr results
-    file.write(f' NA $\pm$ NA &')
-    file.write(f' NA $\pm$ NA &')
+    file.write(f' {cqr_results.length.mean:.{digits_len}f} $\pm$ {cqr_results.length.std:.{digits_len}f} &')
+    file.write(f' {(cqr_results.coverage.mean):.{digits_cov}f} $\pm$ {(cqr_results.coverage.std):.{digits_cov}f} &')
+    # file.write(f' NA $\pm$ NA &')
+    # file.write(f' NA $\pm$ NA &')
     # cp results
     file.write(f' {cp_results.length.mean:.{digits_len}f} $\pm$ {cp_results.length.std:.{digits_len}f} &')
     file.write(f' {(cp_results.coverage.mean):.{digits_cov}f} $\pm$ {(cp_results.coverage.std):.{digits_cov}f} \\\\ \n')
 
 
 if __name__ == '__main__':
-    level = 2
+    level = 1
     alpha = 0.1
     cqr_results_efficient = load_cqr_results('efficientnetb4', alpha, level)
     cqr_results_dense = load_cqr_results('densenet201', alpha, level)
@@ -105,5 +107,5 @@ if __name__ == '__main__':
     with open(file_name, 'w') as file:
         file.write("\multirow{2}{*}{" + f'RSNA{level}' +"}")
         file.write("\n")
-        write_line(file, 'DenseNet201', g_results_dense, cp_results_dense)
-        write_line(file, 'EfficientNet-B4', g_results_efficient, cp_results_efficient)
+        write_line(file, 'DenseNet201', g_results_dense, cp_results_dense, cqr_results_dense)
+        write_line(file, 'EfficientNet-B4', g_results_efficient, cp_results_efficient, cqr_results_efficient)
