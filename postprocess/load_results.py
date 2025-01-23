@@ -83,7 +83,7 @@ if __name__ == '__main__':
     base_model = 'densenet201'
     level = 1
     # calib \ test
-    group = 'test'
+    group = 'calib'
     results = load_results(base_model, level, group)
 
     # x = [i[0] for i in results.labels]
