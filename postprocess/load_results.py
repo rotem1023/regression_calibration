@@ -37,20 +37,16 @@ def get_y_norm(results):
     sds = np.array([i[0] for i in results.sds])
     return (y - prediction_y) / sds
 
-def preform_ks_test(base_model, level, group, results):
+def preform_ks_test(base_model, level, group, norm_values):
 
 
-    x_norm = get_x_norm(results)
-    y_norm = get_y_norm(results)
 
-    ks_test_x = ks_2samp(x_norm, 'norm')
-    ks_test_y = ks_2samp(y_norm, 'norm')
+    ks_test_x = ks_2samp(norm_values, 'norm')
 
 
     # write to file
     with open(f'./testks/{base_model}_lumbar_{group}_{level}_ks_test.txt', 'w') as file:
-        file.write(f"KS test x: {ks_test_x}\n")
-        file.write(f"KS test y: {ks_test_y}\n")
+        file.write(f"KS test : {ks_test_x}\n")
 
 def create_histogram(base_model, level, group, norm_values, line, figsize=(4, 3)):
     """
@@ -85,7 +81,7 @@ def create_histograms(base_model, level, group, results):
 if __name__ == '__main__':
     # densenet201 efficientnetb4
     base_model = 'densenet201'
-    level = 3
+    level = 2
     group = 'test'
     results = load_results(base_model, level, group)
 
@@ -101,6 +97,6 @@ if __name__ == '__main__':
     norm_values= [(results.predictions[i][0] - results.labels[i])/math.sqrt(math.exp(results.sds[i][0])) for i in range(len(results.labels))]
     create_histogram(base_model, level, group, norm_values, 'x_y')
     # create_histograms(base_model, level, group, results)
-    # preform_ks_test(base_model, level, group, results)
+    preform_ks_test(base_model, level, group, norm_values)
 
 
