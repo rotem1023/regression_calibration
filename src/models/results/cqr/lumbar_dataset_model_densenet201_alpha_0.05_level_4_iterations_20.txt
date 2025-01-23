@@ -1,0 +1,6 @@
+q mean: -0.013444420695304871, q std: 0.001324581036480485
+avg_len valid  mean: 0.1666433997452259, avg_len valid std: 0.0026572356918192017
+avg_cov valid mean: 95.08113861083984, avg_cov std: 0.0
+avg_len test mean: 0.16673136949539186, avg_len test std: 0.002685788032186921
+avg_cov test mean: 95.22312431335449, avg_cov test std: 0.7386412314869186
+lumbar cqr, densenet201, 0.05, 4
