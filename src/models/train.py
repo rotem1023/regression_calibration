@@ -25,7 +25,7 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           batch_size=32,
@@ -35,7 +35,7 @@ def train(base_model= 'efficientnetb4',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
+          gpu=3,
           level=4):
     print("Current PID:", os.getpid())
 
@@ -264,6 +264,13 @@ def train(base_model= 'efficientnetb4',
                 writer.add_scalar('train/var', logvar.exp().mean(), batch_counter)
                 batch_counter += 1
                 
+                if torch.isnan(mu).any().item():
+                    print("None in mu, epoch:", e)
+                    return
+                if torch.isnan(logvar).any().item():
+                    print("None in logvar, epoch:", e)
+                    return
+                
 
             epoch_train_loss = np.mean(epoch_train_loss)
             lr_scheduler_net.step(epoch_train_loss)
@@ -296,6 +303,13 @@ def train(base_model= 'efficientnetb4',
                     writer.add_scalar('valid/mse', metric(mu, targets), batch_counter_valid)
                     writer.add_scalar('valid/var', logvar.exp().mean(), batch_counter_valid)
                     batch_counter_valid += 1
+                    
+                    if torch.isnan(mu).any().item():
+                        print("None in mu valid, epoch:", e)
+                        return
+                    if torch.isnan(logvar).any().item():
+                        print("None in logvar valid, epoch:", e)
+                        return
                     
 
             epoch_valid_loss = np.mean(epoch_valid_loss)

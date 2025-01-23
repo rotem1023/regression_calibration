@@ -1,0 +1,12 @@
+q CP mean: 1.783184027671814, q CP std: 0.026809378451186205
+avg_len CP mean: 0.1802308328449726, avg_len CP std: 0.002709676613263291
+avg_cov CP mean: 95.15720081135902, avg_cov CP std: 0.7090807542167287
+q GC mean: 1.7302037176916598, q GC std: 0.010298637228866349
+avg_len GC mean: 0.17487596794962884, avg_len GC std: 0.0010381027744284102
+avg_cov GC mean: 94.38894523326572, avg_cov GC std: 0.45155230530115203
+Validation results:
+avg_len validation mean: 0.18022811487317086, avg_len validation std: 0.002709989407306465
+avg_cov validation mean: 95.08113590263692, avg_cov validation std: 0.0
+avg_len validation mean GC: 0.17487336397171022, avg_len validation std GC: 0.0010444866570832074
+avg_cov validation mean GC: 94.40922920892496, avg_cov validation std GC: 0.33227282980401085
+lumbar, densenet201, 0.05, 4
