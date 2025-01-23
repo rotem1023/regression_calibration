@@ -278,16 +278,16 @@ def train(base_model,
 
 
     model = BreastPathQModel(base_model, out_channels=2).to(device)
-    models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
+    # models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
 
-    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_new.pth.tar', map_location=device)
-    model.load_state_dict(checkpoint['state_dict'])
-    epochs_finsihed = checkpoint['epoch']
-    epochs = epochs - epochs_finsihed
-    if epochs < 2:
-        print("epochs < 2")
-        return
-    print(f"epochs to finsih: {epochs}")
+    # checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_new.pth.tar', map_location=device)
+    # model.load_state_dict(checkpoint['state_dict'])
+    # epochs_finsihed = checkpoint['epoch']
+    # epochs = epochs - epochs_finsihed
+    # if epochs < 2:
+    #     print("epochs < 2")
+    #     return
+    # print(f"epochs to finsih: {epochs}")
     
     if not pretrained:
         kaiming_normal_init(model)

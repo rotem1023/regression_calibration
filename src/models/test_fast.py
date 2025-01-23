@@ -65,17 +65,19 @@ def get_arrays(data_loader, model, device):
     vars_s = []
     logvars_s = []
     targets_s = []
-
+    
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
 
             y_p, logvar, var_bayesian = model(data, dropout=False, mc_dropout=False, test=False)
 
+
             y_p_s.append(y_p.detach())
             vars_s.append(var_bayesian.detach())
             logvars_s.append(logvar.detach())
             targets_s.append(target.detach())
+
 
                             
                     
@@ -135,7 +137,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     iters = 20
-    level = 1
+    level = 2
     alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')

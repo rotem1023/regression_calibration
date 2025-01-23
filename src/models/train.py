@@ -25,18 +25,18 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=50,
+          epochs=25,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=2,
-          level=3):
+          gpu=0,
+          level=4):
     print("Current PID:", os.getpid())
 
 

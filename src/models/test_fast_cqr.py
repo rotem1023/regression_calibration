@@ -153,6 +153,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_new.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
+    print(f"epoch: {checkpoint['epoch']}")
     
     batch_size = 64
 
