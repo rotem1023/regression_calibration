@@ -95,8 +95,8 @@ def write_line(file, model_name, g_results, cp_results, cqr_results):
 
 
 if __name__ == '__main__':
-    level = 1
-    alpha = 0.1
+    level = 4
+    alpha = 0.05
     cqr_results_efficient = load_cqr_results('efficientnetb4', alpha, level)
     cqr_results_dense = load_cqr_results('densenet201', alpha, level)
     cp_results_dense, g_results_dense = load_cp_results('densenet201', alpha, level)
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     os.makedirs('./tables', exist_ok=True)
     file_name = f'./tables/results_level_{level}_alpha_{alpha}.txt'
     with open(file_name, 'w') as file:
-        file.write("\multirow{2}{*}{" + f'RSNA{level}' +"}")
+        file.write("\multirow{2}{*}{" + f'DLS{level}' +"}")
         file.write("\n")
         write_line(file, 'DenseNet201', g_results_dense, cp_results_dense, cqr_results_dense)
         write_line(file, 'EfficientNet-B4', g_results_efficient, cp_results_efficient, cqr_results_efficient)
