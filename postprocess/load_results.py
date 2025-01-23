@@ -19,9 +19,9 @@ class Results:
 
 def load_results(base_model, level, group):
     results_dir = get_results_dir()
-    predictions = np.load(f'{results_dir}/{base_model}_lumbar_{group}_{level}_predictions.npy')
-    sds = np.load(f'{results_dir}/{base_model}_lumbar_{group}_{level}_sds.npy')
-    labels = np.load(f'{results_dir}/{base_model}_lumbar_{group}_{level}_labels.npy')
+    predictions = np.load(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_{group}_original.npy')
+    sds = np.load(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_{group}_original.npy')
+    labels = np.load(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_{group}_original.npy')
     return Results(base_model=base_model, level=level, group=group, predictions=predictions, sds=sds, labels=labels)
 
 
@@ -81,7 +81,8 @@ def create_histograms(base_model, level, group, results):
 if __name__ == '__main__':
     # densenet201 efficientnetb4
     base_model = 'densenet201'
-    level = 2
+    level = 1
+    # calib \ test
     group = 'test'
     results = load_results(base_model, level, group)
 
