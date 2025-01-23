@@ -1,0 +1,12 @@
+q CP mean: nan, q CP std: nan
+avg_len CP mean: nan, avg_len CP std: nan
+avg_cov CP mean: 0.0, avg_cov CP std: 0.0
+q GC mean: nan, q GC std: nan
+avg_len GC mean: nan, avg_len GC std: nan
+avg_cov GC mean: 0.0, avg_cov GC std: 0.0
+Validation results:
+avg_len validation mean: nan, avg_len validation std: nan
+avg_cov validation mean: 0.0, avg_cov validation std: 0.0
+avg_len validation mean GC: nan, avg_len validation std GC: nan
+avg_cov validation mean GC: 0.0, avg_cov validation std GC: 0.0
+lumbar, densenet201, 0.1, 4
