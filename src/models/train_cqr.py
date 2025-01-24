@@ -111,9 +111,9 @@ def train(base_model,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=3,
+          gpu=0,
           gamma=0.5, 
-          level = 2,
+          level = 5,
           alpha= 0.1):
           
     qlow = alpha/2
@@ -454,11 +454,11 @@ if __name__ == '__main__':
     
     dataset = 'lumbar'
     # efficientnetb4 densenet201
-    base_model = 'densenet201'
-    level = 4
-    epochs=35
+    base_model = 'efficientnetb4'
+    level = 5 
+    epochs=40
     alpha=0.1
-    GPU=3
+    GPU=0
     
     print("Process ID: ", os.getpid())
 
