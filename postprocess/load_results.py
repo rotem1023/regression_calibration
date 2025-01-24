@@ -99,8 +99,8 @@ def create_histogram(base_model, level, group, norm_values, line, figsize=(4, 3)
         norm_values,
         bins=bins,
         range=x_range or (min(norm_values), max(norm_values)),
-        edgecolor='white',  # Add white lines between bins
-        linewidth=0.7       # Thickness of the edges
+        # edgecolor='white',  # Add white lines between bins
+        # linewidth=0.7       # Thickness of the edges
     )
 
     # Optionally set x-axis range
