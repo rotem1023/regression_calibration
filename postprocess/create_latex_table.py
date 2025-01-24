@@ -1,5 +1,8 @@
 import os
 import re
+import pandas as pd
+
+
 class Stats:
     def __init__(self, mean, std):
         self.mean = mean
@@ -95,7 +98,7 @@ def write_line(file, model_name, g_results, cp_results, cqr_results):
 
 
 if __name__ == '__main__':
-    level = 4
+    level = 3
     alpha = 0.05
     cqr_results_efficient = load_cqr_results('efficientnetb4', alpha, level)
     cqr_results_dense = load_cqr_results('densenet201', alpha, level)
@@ -104,8 +107,20 @@ if __name__ == '__main__':
     # write the results to a latex table
     os.makedirs('./tables', exist_ok=True)
     file_name = f'./tables/results_level_{level}_alpha_{alpha}.txt'
+
+
     with open(file_name, 'w') as file:
         file.write("\multirow{2}{*}{" + f'DLS{level}' +"}")
         file.write("\n")
         write_line(file, 'DenseNet201', g_results_dense, cp_results_dense, cqr_results_dense)
         write_line(file, 'EfficientNet-B4', g_results_efficient, cp_results_efficient, cqr_results_efficient)
+
+    table = pd.DataFrame()
+    table['Model'] = ['DenseNet201', 'EfficientNet-B4']
+    table['G Length'] = [round(g_results_dense.length.mean,3), round(g_results_efficient.length.mean,3)]
+    table['G Coverage'] = [round(g_results_dense.coverage.mean,3), round(g_results_efficient.coverage.mean,3)]
+    table['CQR Length'] = [round(cqr_results_dense.length.mean,3), round(cqr_results_efficient.length.mean,3)]
+    table['CQR Coverage'] = [round(cqr_results_dense.coverage.mean,3), round(cqr_results_efficient.coverage.mean,3)]
+    table['CP Length'] = [round(cp_results_dense.length.mean,3), round(cp_results_efficient.length.mean,3)]
+    table['CP Coverage'] = [round(cp_results_dense.coverage.mean,3), round(cp_results_efficient.coverage.mean,3)]
+    table.to_csv(f'./tables/results_level_{level}_alpha_{alpha}.csv', index=False)
