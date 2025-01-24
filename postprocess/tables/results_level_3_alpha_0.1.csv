@@ -1,0 +1,3 @@
+Model,G Length,G Coverage,CQR Length,CQR Coverage,CP Length,CP Coverage
+DenseNet201,0.15,94.348,0.178,90.183,0.134,90.332
+EfficientNet-B4,0.113,90.631,0.299,89.962,0.113,90.431

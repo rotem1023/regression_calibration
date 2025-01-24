@@ -98,7 +98,7 @@ def write_line(file, model_name, g_results, cp_results, cqr_results):
 
 
 if __name__ == '__main__':
-    level = 3
+    level = 4
     alpha = 0.05
     cqr_results_efficient = load_cqr_results('efficientnetb4', alpha, level)
     cqr_results_dense = load_cqr_results('densenet201', alpha, level)
