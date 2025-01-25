@@ -30,13 +30,13 @@ def train(base_model= 'densenet201',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=25,
+          epochs=50,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
           gpu=0,
-          level=3):
+          level=5):
     print("Current PID:", os.getpid())
 
 
@@ -264,12 +264,12 @@ def train(base_model= 'densenet201',
                 writer.add_scalar('train/var', logvar.exp().mean(), batch_counter)
                 batch_counter += 1
                 
-                if torch.isnan(mu).any().item():
-                    print("None in mu, epoch:", e)
-                    return
-                if torch.isnan(logvar).any().item():
-                    print("None in logvar, epoch:", e)
-                    return
+                # if torch.isnan(mu).any().item():
+                #     print("None in mu, epoch:", e)
+                #     return
+                # if torch.isnan(logvar).any().item():
+                #     print("None in logvar, epoch:", e)
+                #     return
                 
 
             epoch_train_loss = np.mean(epoch_train_loss)
@@ -304,12 +304,12 @@ def train(base_model= 'densenet201',
                     writer.add_scalar('valid/var', logvar.exp().mean(), batch_counter_valid)
                     batch_counter_valid += 1
                     
-                    if torch.isnan(mu).any().item():
-                        print("None in mu valid, epoch:", e)
-                        return
-                    if torch.isnan(logvar).any().item():
-                        print("None in logvar valid, epoch:", e)
-                        return
+                    # if torch.isnan(mu).any().item():
+                    #     print("None in mu valid, epoch:", e)
+                    #     return
+                    # if torch.isnan(logvar).any().item():
+                    #     print("None in logvar valid, epoch:", e)
+                    #     return
                     
 
             epoch_valid_loss = np.mean(epoch_valid_loss)

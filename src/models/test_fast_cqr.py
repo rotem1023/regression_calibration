@@ -140,10 +140,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:1")
     iters = 20
-    level = 3
-    alpha = 0.05
+    level = 4
+    alpha = 0.1
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
