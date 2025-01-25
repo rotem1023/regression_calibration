@@ -1,12 +1,12 @@
-q CP mean: 1.4640305101871491, q CP std: 0.01080759122054438
-avg_len CP mean: 0.25067858323454856, avg_len CP std: 0.0027718626932842555
-avg_cov CP mean: 90.13712544438802, avg_cov CP std: 0.7107534714280178
-q GC mean: 1.471538224211484, q GC std: 0.006342318571217999
-avg_len GC mean: 0.25196541249752047, avg_len GC std: 0.002494740777844293
-avg_cov GC mean: 90.40375825292027, avg_cov GC std: 0.4523003302026198
+q CP mean: 1.8299359261989594, q CP std: 0.00919185651638924
+avg_len CP mean: inf, avg_len CP std: nan
+avg_cov CP mean: 90.21076688674454, avg_cov CP std: 1.0816193022017069
+q GC mean: 1.9098028053310512, q GC std: 0.004603290086017263
+avg_len GC mean: inf, avg_len GC std: nan
+avg_cov GC mean: 94.43118334179786, avg_cov GC std: 0.4860945313107308
 Validation results:
-avg_len validation mean: 0.25200683400034907, avg_len validation std: 0.0027511899829953186
-avg_cov validation mean: 90.09649568308787, avg_cov validation std: 0.0
-avg_len validation mean GC: 0.25329784005880357, avg_len validation std GC: 0.0021536145890700994
-avg_cov validation mean GC: 90.28694768918233, avg_cov validation std GC: 0.35297153205204884
+avg_len validation mean: inf, avg_len validation std: nan
+avg_cov validation mean: 90.09395632300661, avg_cov validation std: 0.011356363522093054
+avg_len validation mean GC: inf, avg_len validation std GC: nan
+avg_cov validation mean GC: 94.5175215845607, avg_cov validation std GC: 0.33424445266954145
 lumbar, densenet201, 0.1, 5
