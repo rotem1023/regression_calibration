@@ -155,11 +155,11 @@ def get_arrays(data_loader, model, dist_model, device):
                         
             if dist_model is not None:
                 distances = dist_model(data).detach()
-                positive_dist_s.append(distances[:,0]/3.0)
-                negative_dist_s.append(distances[:,1]/3.0)
+                positive_dist_s.append(distances[:,0])
+                negative_dist_s.append(distances[:,1])
                             
                     
-    return torch.cat(y_p_s), torch.cat(vars_s), torch.cat(logvars_s), torch.cat(targets_s), torch.cat(positive_dist_s), torch.cat(negative_dist_s)      
+    return torch.cat(y_p_s).cpu(), torch.cat(vars_s).cpu(), torch.cat(logvars_s).cpu(), torch.cat(targets_s).cpu(), torch.cat(positive_dist_s).cpu(), torch.cat(negative_dist_s).cpu()      
     
 import numpy as np
 import torch
@@ -215,7 +215,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     iters = 20
-    level = 1
+    level = 4
     alpha = 0.05
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
@@ -458,10 +458,11 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     print(avg_cov_all_gc)
 
     # Define the output file path
+    resutls_dir_path = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results_new'
     output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_after.txt"
 
     # Open the file in append mode
-    with open(output_file, "a") as f:
+    with open(f'{resutls_dir_path}/{output_file}', "w") as f:
         # Print and save CP metrics
         print(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}')
         f.write(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}\n')

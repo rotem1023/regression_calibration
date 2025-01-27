@@ -24,10 +24,11 @@ import load_trained_models
 from torch.utils.data import Dataset, DataLoader
 
 
-def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name):
+def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name, is_best = False):
+    suffix = 'best' if is_best else 'new'
     os.makedirs('/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new', exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
-    filename = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{model_name}_{dataset_name}_snapshot_{dist_str}_after.pth.tar"
+    filename = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{model_name}_{dataset_name}_snapshot_{dist_str}_{suffix}.pth.tar"
     print(f"Saving snapshot, path: {filename}")
     torch.save({
         'epoch': epoch,
@@ -131,8 +132,8 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
-          level=3):
+          gpu=1,
+          level=5):
     print("Current PID:", os.getpid())
 
 
@@ -183,7 +184,7 @@ def train(base_model= 'densenet201',
         assert False
 
     model = load_trained_models.get_model(base_model, level, None, device)
-    dist_model = load_trained_models.get_model(dist_model_name, level, base_model, device)
+    dist_model = DistancePredictor(dist_model_name).to(device)
     dist_optimizer = optim.Adam(dist_model.parameters(), lr=1e-3)
     loss_dist = CustomMSELoss(lambda_param=5)
 
@@ -225,8 +226,8 @@ def train(base_model= 'densenet201',
 
                 # Forward pass for distance model
                 predicted_distances = dist_model(data)
-                true_d_plus = torch.clamp(targets - mu, min=0) * 3.0 # True d+
-                true_d_minus = torch.clamp(mu - targets, min=0) * 3.0 # True d-
+                true_d_plus = torch.clamp(targets - mu, min=0) # True d+
+                true_d_minus = torch.clamp(mu - targets, min=0) # True d-
                 true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
 
                 # Compute loss for distance model
@@ -272,7 +273,7 @@ def train(base_model= 'densenet201',
 
 
                     # -------- Evaluate Distance Model --------
-                    predicted_distances = dist_model(data) / 3.0 # Predict d+ and d-
+                    predicted_distances = dist_model(data) # Predict d+ and d-
                     true_d_plus = torch.clamp(targets - mu, min=0)  # True d+
                     true_d_minus = torch.clamp(mu - targets, min=0)  # True d-
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
@@ -299,7 +300,7 @@ def train(base_model= 'densenet201',
             dist_losses.append(epoch_dist_valid_loss)  # Store distance model's validation loss
 
             if valid_losses[-1] <= np.min(valid_losses):
-                is_best = True
+                save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, is_best=True)
 
 
             save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model)

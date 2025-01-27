@@ -148,5 +148,5 @@ class DistancePredictor(nn.Module):
         distances = self.base_model(x)  # Directly get two outputs (d+ and d-)
         distances = self.relu(distances)  # Apply ReLU to ensure non-negative predictions
         epsilon = 1e-6  # Add a small positive constant for numerical stability
-        distances = distances + epsilon
+        # distances = distances + epsilon
         return distances
