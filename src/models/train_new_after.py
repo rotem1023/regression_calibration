@@ -3,6 +3,8 @@
 # Leibniz Universität Hannover, Germany
 # 2019
 
+
+from datetime import datetime
 import os
 import fire
 import torch
@@ -24,11 +26,11 @@ import load_trained_models
 from torch.utils.data import Dataset, DataLoader
 
 
-def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name, is_best = False):
+def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, is_best = False):
     suffix = 'best' if is_best else 'new'
     os.makedirs('/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new', exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
-    filename = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{model_name}_{dataset_name}_snapshot_{dist_str}_{suffix}.pth.tar"
+    filename = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_{suffix}.pth.tar"
     print(f"Saving snapshot, path: {filename}")
     torch.save({
         'epoch': epoch,
@@ -132,8 +134,9 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=1,
-          level=5):
+          lambda_param=1.0,
+          gpu=0,
+          level=2):
     print("Current PID:", os.getpid())
 
 
@@ -154,6 +157,11 @@ def train(base_model= 'densenet201',
     print("lr_patience =", lr_patience)
     print("weight_decay =", weight_decay)
     print("device =", device)
+    print("level =", level)
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Print the time
+    print("Current Time:", current_time)
 
     writer = SummaryWriter(comment=f"_{dataset}_{base_model}_{likelihood}")
 
@@ -300,12 +308,12 @@ def train(base_model= 'densenet201',
             dist_losses.append(epoch_dist_valid_loss)  # Store distance model's validation loss
 
             if valid_losses[-1] <= np.min(valid_losses):
-                save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, is_best=True)
+                save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, is_best=True)
 
 
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model)
+            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param)
     except KeyboardInterrupt:
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model)
+            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param)
             
             
 if __name__ == '__main__':
