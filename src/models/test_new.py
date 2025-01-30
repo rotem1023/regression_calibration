@@ -16,12 +16,13 @@ from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
-from models import BreastPathQModel, DistancePredictor
+from models import BreastPathQModel, DistancePredictor, DistancePredictorOneOutput
 from glob import glob
 import statistics
 import math
 import load_trained_models
-
+import numpy as np
+import torch
 
 def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, alpha, addtvie):
     if addtvie:
@@ -97,7 +98,7 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 
 
 
-def get_arrays(data_loader, model, dist_model, device):
+def get_arrays(data_loader, model, dist_model, device, one_output = False):
     y_p_s = []
     vars_s = []
     logvars_s = []
@@ -117,14 +118,17 @@ def get_arrays(data_loader, model, dist_model, device):
                         
             if dist_model is not None:
                 distances = dist_model(data).detach()
-                positive_dist_s.append(distances[:,0])
-                negative_dist_s.append(distances[:,1])
+                if one_output:
+                    positive_dist_s.append(distances.squeeze(-1))
+                    negative_dist_s.append(distances.squeeze(-1))
+                else:
+                    positive_dist_s.append(distances[:,0])
+                    negative_dist_s.append(distances[:,1])
                             
                     
     return torch.cat(y_p_s).cpu(), torch.cat(vars_s).cpu(), torch.cat(logvars_s).cpu(), torch.cat(targets_s).cpu(), torch.cat(positive_dist_s).cpu(), torch.cat(negative_dist_s).cpu()      
     
-import numpy as np
-import torch
+
 
 def shuffle_arrays(calib_arrays, test_arrays):
     """
@@ -158,7 +162,13 @@ def shuffle_arrays(calib_arrays, test_arrays):
 
     return calib_shuffled, test_shuffled
    
-    
+
+def get_dir_results(one_output = False):
+    resutls_dir_path = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results_new'
+    if one_output:
+        resutls_dir_path = f"{resutls_dir_path}/one_output"
+    os.makedirs(resutls_dir_path, exist_ok=True)
+    return resutls_dir_path
     
 
 def main():
@@ -176,16 +186,17 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
-    lambda_param = 5
+    one_output = False
+    lambda_param = 1
     iters = 20
-    level = 5
-    alpha = 0.05
+    level = 4
+    alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
     
     model = load_trained_models.get_model(base_model, level, None, device)
-    dist_model = load_trained_models.get_model(base_model_dist, level, base_model, device, after=True, lambda_param=lambda_param)
+    dist_model = load_trained_models.get_model(base_model_dist, level, base_model, device, after=True, lambda_param=lambda_param, one_out=one_output)
     
     batch_size = 64
 
@@ -201,8 +212,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
     
-    y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model, device)
-    y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model, device)
+    y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model, device, one_output=one_output)
+    y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model, device, one_output=one_output)
     
     
     # Calibration and test arrays (from your original code)
@@ -303,6 +314,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         q_all_new_addtive.append(get_float(q_add))
         avg_len_new_addtive.append(length_add_test)
         avg_cov_new_addtive.append(coverage_add_test)
+        
+        # prints for ablation 
+        lower_dist = torch.abs(q_add+negative_dist_test)
+        upper_dist = torch.abs(q_add + positive_dist_test)
+        print(f" lower distance: {torch.mean(lower_dist)}, upper distance: {torch.mean(upper_dist)}), ratio: {torch.mean(torch.abs(upper_dist-lower_dist))}, method: addtive")
+        
             
         q_div = calc_opt_q_new_method(target_calib, mu_calib, positive_dist_calib, negative_dist_calib, alpha , False)
             
@@ -351,11 +368,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     print(avg_cov_all_gc)
 
     # Define the output file path
-    resutls_dir_path = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results_new'
-    if lambda_param == 5:
-        output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_after.txt"
-    else:
-        output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}_after.txt"
+    resutls_dir_path = get_dir_results(one_output=one_output)
+    output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}_after.txt"
 
     # Open the file in append mode
     with open(f'{resutls_dir_path}/{output_file}', "w") as f:

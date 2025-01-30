@@ -34,6 +34,7 @@ def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,l
     print(f"Saving snapshot, path: {filename}")
     torch.save({
         'epoch': epoch,
+        'lambda_param': lambda_param,
         'state_dict': model.state_dict(),
     }, filename)    
 
@@ -120,10 +121,10 @@ class CustomMSELoss(nn.Module):
         
         # Combine both penalties
         total_loss = torch.mean(loss_smaller + loss_larger)
-        
+                
         return total_loss
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
          dist_model_name = 'resnet50',
@@ -134,9 +135,9 @@ def train(base_model= 'efficientnetb4',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          lambda_param=6.0,
+          lambda_param=1.0,
           gpu=2,
-          level=1):
+          level=5):
     print("Current PID:", os.getpid())
 
 
@@ -156,6 +157,7 @@ def train(base_model= 'efficientnetb4',
     print("valid_size =", valid_size)
     print("lr_patience =", lr_patience)
     print("weight_decay =", weight_decay)
+    print("lambda param = ", lambda_param)
     print("device =", device)
     print("level =", level)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -194,7 +196,7 @@ def train(base_model= 'efficientnetb4',
     model = load_trained_models.get_model(base_model, level, None, device)
     dist_model = DistancePredictor(dist_model_name).to(device)
     dist_optimizer = optim.Adam(dist_model.parameters(), lr=1e-3)
-    loss_dist = CustomMSELoss(lambda_param=5)
+    loss_dist = CustomMSELoss(lambda_param=lambda_param)
 
     if not pretrained:
         kaiming_normal_init(model)

@@ -150,3 +150,33 @@ class DistancePredictor(nn.Module):
         epsilon = 1e-6  # Add a small positive constant for numerical stability
         # distances = distances + epsilon
         return distances
+    
+    
+class DistancePredictorOneOutput(nn.Module):
+    def __init__(self, base_model='resnet50'):
+        super(DistancePredictorOneOutput, self).__init__()
+        if base_model == 'resnet50':
+            self.base_model = resnet50(pretrained=True)
+        elif base_model == 'densenet121':
+            self.base_model = densenet121(pretrained=True)
+            num_features = self.base_model.classifier.in_features  # For DenseNet, it's 'classifier'
+            self.base_model.classifier = nn.Linear(num_features, 1)
+        else:
+            raise NotImplementedError(f"Only resnet50 is supported, got {base_model}")
+
+        num_features = self.base_model.fc.in_features
+        self.base_model.fc = nn.Linear(num_features, 1)
+        nn.init.xavier_uniform_(self.base_model.fc.weight)
+        nn.init.constant_(self.base_model.fc.bias, 0.1)
+
+        # Add a new layer to predict d+ and d-
+        # self.fc = nn.Linear(1, 2)  # Predict two distances
+        # self.relu = nn.ReLU()  # Ensure non-negative outputs
+        self.relu = nn.Softplus(beta=1)
+    
+    def forward(self, x):
+        distance = self.base_model(x)  # Directly get two outputs (d+ and d-)
+        distance = self.relu(distance)  # Apply ReLU to ensure non-negative predictions
+        epsilon = 1e-6  # Add a small positive constant for numerical stability
+        # distances = distances + epsilon
+        return distance
