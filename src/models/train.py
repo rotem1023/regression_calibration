@@ -25,9 +25,9 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
-          dataset = 'lumbar',
+          dataset = 'boneage',
           batch_size=32,
           init_lr=0.001,
           epochs=50,
@@ -35,7 +35,7 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
+          gpu=2,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -99,30 +99,14 @@ def train(base_model= 'densenet201',
         out_channels = 1
         pretrained = False
 
-        data_dir = '/media/fastdata/laves/rsna-bone-age/'
-        data_set_train = BoneAgeDataset(data_dir=data_dir, augment=augment, resize_to=resize_to, preload=True)
-        data_set_valid = BoneAgeDataset(data_dir=data_dir, augment=False, resize_to=resize_to, preload=False,
-                                        preloaded_data=[data_set_train._labels, data_set_train._imgs]
-                                        )
+        data_set_train = BoneAgeDataset(group='train', augment=augment, resize_to=resize_to)
+        data_set_valid = BoneAgeDataset(augment=False, resize_to=resize_to,group='valid')
+  
+        # assert len(data_set_train) > 0
+        # assert len(data_set_valid) > 0
 
-        assert len(data_set_train) > 0
-        assert len(data_set_valid) > 0
-
-        # indices = torch.randperm(len(data_set_train))
-        # train_indices = indices[:len(indices) - 3*valid_size]
-        # valid_indices = indices[len(indices) - 3*valid_size:len(indices) - 2*valid_size]
-        # test_indices = indices[len(indices) - 2*valid_size:]
-        # torch.save(train_indices, f'./{dataset}_train_indices.pth')
-        # torch.save(valid_indices, f'./{dataset}_valid_indices.pth')
-        # torch.save(test_indices, f'./{dataset}_test_indices.pth')
-
-        train_indices = torch.load(f'./data_indices/{dataset}_train_indices.pth')
-        valid_indices = torch.load(f'./data_indices/{dataset}_valid_indices.pth')
-
-        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(train_indices))
-        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(valid_indices))
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=32, shuffle=True)
     elif dataset == 'endovis':
         in_channels = 3
         out_channels = 2
@@ -264,12 +248,12 @@ def train(base_model= 'densenet201',
                 writer.add_scalar('train/var', logvar.exp().mean(), batch_counter)
                 batch_counter += 1
                 
-                if torch.isnan(mu).any().item():
-                    print("None in mu, epoch:", e)
-                    return
-                if torch.isnan(logvar).any().item():
-                    print("None in logvar, epoch:", e)
-                    return
+                # if torch.isnan(mu).any().item():
+                #     print("None in mu, epoch:", e)
+                #     return
+                # if torch.isnan(logvar).any().item():
+                #     print("None in logvar, epoch:", e)
+                #     return
                 
 
             epoch_train_loss = np.mean(epoch_train_loss)
@@ -304,12 +288,12 @@ def train(base_model= 'densenet201',
                     writer.add_scalar('valid/var', logvar.exp().mean(), batch_counter_valid)
                     batch_counter_valid += 1
                     
-                    if torch.isnan(mu).any().item():
-                        print("None in mu valid, epoch:", e)
-                        return
-                    if torch.isnan(logvar).any().item():
-                        print("None in logvar valid, epoch:", e)
-                        return
+                    # if torch.isnan(mu).any().item():
+                    #     print("None in mu valid, epoch:", e)
+                    #     return
+                    # if torch.isnan(logvar).any().item():
+                    #     print("None in logvar valid, epoch:", e)
+                    #     return
                     
 
             epoch_valid_loss = np.mean(epoch_valid_loss)

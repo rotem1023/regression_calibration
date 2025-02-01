@@ -122,33 +122,42 @@ class BreastPathQModel(torch.nn.Module):
 
 
 class DistancePredictor(nn.Module):
-    def __init__(self, base_model='resnet50'):
+    def __init__(self, base_model='resnet50', in_channels=3):
         super(DistancePredictor, self).__init__()
+        
         if base_model == 'resnet50':
             self.base_model = resnet50(pretrained=True)
+            num_features = self.base_model.fc.in_features
+            self.base_model.fc = nn.Linear(num_features, 2)
         elif base_model == 'densenet121':
             self.base_model = densenet121(pretrained=True)
-            num_features = self.base_model.classifier.in_features  # For DenseNet, it's 'classifier'
+            num_features = self.base_model.classifier.in_features
             self.base_model.classifier = nn.Linear(num_features, 1)
         else:
-            raise NotImplementedError(f"Only resnet50 is supported, got {base_model}")
+            raise NotImplementedError(f"Only resnet50 and densenet121 are supported, got {base_model}")
 
-        # Modify the final layer of resnet50 to output a single value (y_hat)
-        num_features = self.base_model.fc.in_features
-        self.base_model.fc = nn.Linear(num_features, 2)
+        # Modify the first convolutional layer to accept `in_channels`
+        if in_channels != 3:  # Only modify if necessary
+            old_conv = self.base_model.conv1
+            self.base_model.conv1 = nn.Conv2d(
+                in_channels=in_channels, 
+                out_channels=old_conv.out_channels, 
+                kernel_size=old_conv.kernel_size, 
+                stride=old_conv.stride, 
+                padding=old_conv.padding, 
+                bias=old_conv.bias is not None
+            )
+        
+        # Initialize the modified layers
         nn.init.xavier_uniform_(self.base_model.fc.weight)
         nn.init.constant_(self.base_model.fc.bias, 0.1)
 
-        # Add a new layer to predict d+ and d-
-        # self.fc = nn.Linear(1, 2)  # Predict two distances
-        # self.relu = nn.ReLU()  # Ensure non-negative outputs
+        # Use Softplus activation for non-negative outputs
         self.relu = nn.Softplus(beta=1)
-    
+
     def forward(self, x):
-        distances = self.base_model(x)  # Directly get two outputs (d+ and d-)
-        distances = self.relu(distances)  # Apply ReLU to ensure non-negative predictions
-        epsilon = 1e-6  # Add a small positive constant for numerical stability
-        # distances = distances + epsilon
+        distances = self.base_model(x)  # Get two outputs (d+ and d-)
+        distances = self.relu(distances)  # Apply Softplus for non-negative predictions
         return distances
     
     
