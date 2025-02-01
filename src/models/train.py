@@ -30,7 +30,7 @@ def train(base_model= 'efficientnetb4',
           dataset = 'boneage',
           batch_size=32,
           init_lr=0.001,
-          epochs=50,
+          epochs=500,
           augment=True,
           valid_size=300,
           lr_patience=20,
@@ -99,7 +99,7 @@ def train(base_model= 'efficientnetb4',
         out_channels = 1
         pretrained = False
 
-        data_set_train = BoneAgeDataset(group='train', augment=augment, resize_to=resize_to)
+        data_set_train = BoneAgeDataset(group='train', augment=False, resize_to=resize_to)
         data_set_valid = BoneAgeDataset(augment=False, resize_to=resize_to,group='valid')
   
         # assert len(data_set_train) > 0
@@ -234,6 +234,13 @@ def train(base_model= 'efficientnetb4',
                 data, targets = data.to(device), targets.to(device)
                 optimizer_net.zero_grad()
                 mu, logvar, _ = model(data, dropout=True)
+                if torch.isnan(mu).any().item():
+                    print("None in mu, epoch:", e)
+                    continue
+                if torch.isnan(logvar).any().item():
+                    print("None in logvar, epoch:", e)
+                    continue
+                
                 loss = nll_criterion(mu, logvar, targets).to(device)
                 loss.backward()
                 epoch_train_loss.append(loss.item())
@@ -247,13 +254,6 @@ def train(base_model= 'efficientnetb4',
                 writer.add_scalar('train/mse', metric(mu, targets), batch_counter)
                 writer.add_scalar('train/var', logvar.exp().mean(), batch_counter)
                 batch_counter += 1
-                
-                # if torch.isnan(mu).any().item():
-                #     print("None in mu, epoch:", e)
-                #     return
-                # if torch.isnan(logvar).any().item():
-                #     print("None in logvar, epoch:", e)
-                #     return
                 
 
             epoch_train_loss = np.mean(epoch_train_loss)

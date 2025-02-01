@@ -18,7 +18,7 @@ from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
-from models import BreastPathQModel, DistancePredictor
+from models import BreastPathQModelOneOutput, DistancePredictor
 from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
 import torch.nn as nn
@@ -28,9 +28,9 @@ from torch.utils.data import Dataset, DataLoader
 
 def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, is_best = False):
     suffix = 'best' if is_best else 'new'
-    os.makedirs('/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new', exist_ok=True)
+    os.makedirs('/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new_mse', exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
-    filename = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_{suffix}.pth.tar"
+    filename = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new_mse/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_{suffix}.pth.tar"
     print(f"Saving snapshot, path: {filename}")
     torch.save({
         'epoch': epoch,
@@ -67,7 +67,7 @@ def aggregate_results(base_dataset, model, device):
                 print("data.shape[0] != 32")
                 continue
             # Compute `mu`
-            mu, _, _ = model(data)  # Assuming model returns (mu, logvar, _)
+            mu = model(data)  # Assuming model returns (mu, logvar, _)
 
 
             # Store results
@@ -125,7 +125,7 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'boneage',
          dist_model_name = 'resnet50',
@@ -137,7 +137,7 @@ def train(base_model= 'efficientnetb4',
           lr_patience=20,
           weight_decay=1e-8,
           lambda_param=1.0,
-          gpu=2,
+          gpu=1,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -167,6 +167,7 @@ def train(base_model= 'efficientnetb4',
     print("Current Time:", current_time)
 
     writer = SummaryWriter(comment=f"_{dataset}_{base_model}_{likelihood}")
+    loss = "mse"
 
 
     dataset_name = dataset
@@ -174,14 +175,14 @@ def train(base_model= 'efficientnetb4',
         dataset_name = f'{dataset}_L{level}'
         data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5)
         data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5)
-        model = load_trained_models.get_model_lumbar(base_model, level, None, device)
+        model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss = loss)
         dist_model = DistancePredictor(dist_model_name).to(device)
     elif dataset=='boneage':
         resize_to = (256, 256)
         data_set_train = BoneAgeDataset(group='train', augment=augment, resize_to=resize_to)
         data_set_valid = BoneAgeDataset(augment=False, resize_to=resize_to,group='valid')
         
-        model = load_trained_models.get_model_boneage(base_model, None, device)
+        model = load_trained_models.get_model_boneage(base_model, None, device, loss=loss)
         dist_model = DistancePredictor(dist_model_name, in_channels = 1).to(device)
 
     else:
@@ -272,7 +273,6 @@ def train(base_model= 'efficientnetb4',
             model.eval()
             dist_model.eval()
 
-            epoch_valid_loss = []
             dist_valid_loss = []  # To store distance model losses
             targets_valid = []
 
@@ -301,16 +301,14 @@ def train(base_model= 'efficientnetb4',
                     
 
             # Compute metrics for the epoch
-            epoch_valid_loss = np.mean(epoch_valid_loss)
             epoch_dist_valid_loss = np.mean(dist_valid_loss)
             targets_valid = torch.cat(targets_valid, dim=0)
 
             print(f"Epoch {e}:")
-            print(f"valid: loss: {epoch_valid_loss:.5f}, dist_loss: {epoch_dist_valid_loss:.5f}")
+            print(f"valid: dist_loss: {epoch_dist_valid_loss:.5f}")
 
             # Save epoch losses
             train_losses.append(epoch_train_loss)
-            valid_losses.append(epoch_valid_loss)
             dist_losses.append(epoch_dist_valid_loss)  # Store distance model's validation loss
 
             if valid_losses[-1] <= np.min(valid_losses):

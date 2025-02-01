@@ -14,8 +14,8 @@ import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
-from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
+from data_generator_boneage import BoneAgeDataset
 from models import BreastPathQModel, DistancePredictor, DistancePredictorOneOutput
 from glob import glob
 import statistics
@@ -96,6 +96,43 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
     return q
 
 
+def get_saved_dir(results_dir, dataset, base_model, dist_model, loss,group,  level = None):
+    cur_dir = results_dir
+    os.makedirs(cur_dir, exist_ok=True)
+    cur_dir = f"{cur_dir}/{dataset}"
+    os.makedirs(cur_dir, exist_ok=True)
+    if level != None:
+        cur_dir = f"{cur_dir}/{level}"
+        os.makedirs(cur_dir, exist_ok=True)
+    cur_dir = f"{cur_dir}/{loss}"
+    os.makedirs(cur_dir, exist_ok=True)
+    cur_dir = f"{cur_dir}/{base_model}"
+    os.makedirs(cur_dir, exist_ok=True)
+    cur_dir = f"{cur_dir}/{dist_model}"
+    os.makedirs(cur_dir, exist_ok=True)
+    cur_dir = f"{cur_dir}/{group}"
+    os.makedirs(cur_dir, exist_ok=True)
+    return cur_dir
+
+    
+
+def save_arrays(results_dir, dataset, base_model, dist_model, loss, group, level, y, mu, logvar, positive_distance, negative_distance):
+    saved_dir = get_saved_dir(results_dir=results_dir, dataset=dataset, base_model=base_model, dist_model=dist_model, loss = loss, group = group, level=level)
+    np.save(f'{saved_dir}/y.npy', y.cpu().numpy())
+    np.save(f'{saved_dir}/mu.npy', mu.cpu().numpy())
+    np.save(f'{saved_dir}/logvar.npy', logvar.cpu().numpy())  
+    np.save(f'{saved_dir}/positive_distance.npy', positive_distance.cpu().numpy()) 
+    np.save(f'{saved_dir}/negative_distance.npy', negative_distance)
+
+def load_arrays(results_dir, dataset, base_model, dist_model, loss, group, level):
+    saved_dir = get_saved_dir(results_dir=results_dir, dataset=dataset, base_model=base_model, dist_model=dist_model, loss = loss, group = group, level=level)
+    y = np.save(f'{saved_dir}/y.npy')
+    mu = np.save(f'{saved_dir}/mu.npy')
+    logvar = np.save(f'{saved_dir}/logvar.npy')  
+    pos_dist = np.save(f'{saved_dir}/positive_distance.npy') 
+    neg_dist = np.save(f'{saved_dir}/negative_distance.npy')
+    return y, mu, logvar, pos_dist, neg_dist
+    
 
 
 def get_arrays(data_loader, model, dist_model, device, one_output = False):
@@ -106,6 +143,7 @@ def get_arrays(data_loader, model, dist_model, device, one_output = False):
     positive_dist_s = []
     negative_dist_s = []
     with torch.no_grad():
+        second = False
         for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
 
@@ -124,7 +162,10 @@ def get_arrays(data_loader, model, dist_model, device, one_output = False):
                 else:
                     positive_dist_s.append(distances[:,0])
                     negative_dist_s.append(distances[:,1])
-                            
+            if second:
+                break
+            second = True
+            
                     
     return torch.cat(y_p_s).cpu(), torch.cat(vars_s).cpu(), torch.cat(logvars_s).cpu(), torch.cat(targets_s).cpu(), torch.cat(positive_dist_s).cpu(), torch.cat(negative_dist_s).cpu()      
     
@@ -182,11 +223,14 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:1")
+    dataset = 'lumbar'
+    loss = 'gaussian'
     one_output = False
+    load_results = False
     lambda_param = 1
     iters = 20
     level = 1
@@ -194,15 +238,24 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
-    
-    model = load_trained_models.get_model_lumbar(base_model, level, None, device)
-    dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, after=True, lambda_param=lambda_param, one_out=one_output)
-    
     batch_size = 64
-
-
-    data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
-    data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+    results_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results_new/predictions'
+    
+    if dataset == 'lumbar':
+        model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss)
+        dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, after=True, lambda_param=lambda_param, one_out=one_output, loss=loss)
+        data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
+        data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+    elif dataset == 'boneage':
+        resize_to = (256, 256)
+        data_set_valid_original = BoneAgeDataset(group='valid', augment=False, resize_to=resize_to)
+        data_set_test_original = BoneAgeDataset(group='test', augment=False, resize_to=resize_to)
+        
+        model = load_trained_models.get_model_boneage(base_model, None, device, loss=loss)
+        dist_model = load_trained_models.get_model_boneage(base_model_dist, base_model, device, after=True, lambda_param=lambda_param, one_out=one_output, loss=loss)
+    else:
+        assert False
+    
     
     assert len(data_set_valid_original) > 0
     assert len(data_set_test_original) > 0
@@ -212,10 +265,21 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
     
-    y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model, device, one_output=one_output)
-    y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model, device, one_output=one_output)
     
-    
+    cur_level = level
+    if dataset == 'boneage':
+        cur_level = None
+    if load_results:
+        y_p_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = dist_model, loss = loss, group = 'valid', level = cur_level)
+        vars_calib_original = logvars_calib_original.exp()
+        y_p_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = dist_model, loss = loss, group = 'test', level = cur_level)
+        vars_test_original = logvars_test_original.exp()
+    else:
+        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model, device, one_output=one_output)
+        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model, device, one_output=one_output)
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = dist_model, loss = loss, group = 'valid', level = cur_level, y = targets_calib_original, mu=y_p_calib_original, logvar=logvars_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original)
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = dist_model, loss = loss, group = 'test', level = cur_level, y = targets_test_original, mu=y_p_test_original, logvar=logvars_test_original, positive_distance=positive_dist_test_original, negative_distance= negative_dist_test_original)
+
     # Calibration and test arrays (from your original code)
     calib_arrays = [
         y_p_calib_original, 
@@ -271,7 +335,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         logvar_calib = logvars_calib.mean(dim=1).unsqueeze(1)
         var_calib  = logvar_calib.exp()
         sd_calib = var_calib.sqrt()
-        target_calib = targets_calib.unsqueeze(1)
+        if dataset== 'boneage':
+            target_calib = targets_calib
+        else:
+            target_calib = targets_calib.unsqueeze(1)
         positive_dist_calib = positive_dist_calib.unsqueeze(-1)
         negative_dist_calib = negative_dist_calib.unsqueeze(-1)
             
@@ -283,7 +350,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         var_test = vars_test
         logvars_test = logvars_test
         logvar_test = logvars_test.mean(dim=1).unsqueeze(1)
-        target_test = targets_test.unsqueeze(1)
+        if dataset== 'boneage':
+            target_test = targets_test
+        else:
+            target_test = targets_test.unsqueeze(1)
         var_test = logvar_test.exp()
         sd_test = var_test.sqrt()
         positive_dist_test = positive_dist_test.unsqueeze(-1)
@@ -369,7 +439,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     # Define the output file path
     resutls_dir_path = get_dir_results(one_output=one_output)
-    output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}_after.txt"
+    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}_after.txt"
 
     # Open the file in append mode
     with open(f'{resutls_dir_path}/{output_file}', "w") as f:
@@ -413,8 +483,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
                
            
         # Print and save additional info
-        print(f"lumbar, {base_model}, {alpha}, {level}")
-        f.write(f"lumbar, {base_model}, {alpha}, {level}\n")
+        print(f"{dataset}, {base_model}, {alpha}, {level}")
+        f.write(f"{dataset}, {base_model}, {alpha}, {level}\n")
     
   
 def get_float(x):

@@ -172,12 +172,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     # save test arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"
     
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_calib_original.cpu().numpy())  
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy()) 
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_test_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_calib_original.cpu().numpy())  
+    # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy()) 
+    # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_test_original.cpu().numpy())
 
     # print(f"y_p_test: {list(y_p_test_original)}")
     # print(f"logvars_test: {list(logvars_test_original)}")

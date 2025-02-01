@@ -25,11 +25,11 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           dataset = 'boneage',
           batch_size=32,
           init_lr=0.001,
-          epochs=100,
+          epochs=500,
           augment=True,
           valid_size=300,
           lr_patience=20,
