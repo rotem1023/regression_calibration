@@ -25,7 +25,7 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           dataset = 'boneage',
           batch_size=32,
           init_lr=0.001,
@@ -34,7 +34,7 @@ def train(base_model= 'efficientnetb4',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
+          gpu=1,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -109,13 +109,6 @@ def train(base_model= 'efficientnetb4',
         assert len(data_set_train) > 0
         assert len(data_set_valid) > 0
 
-        # indices = torch.randperm(len(data_set_valid))
-        # train_indices = indices[:len(indices) - 2*valid_size]
-        # valid_indices = indices[len(indices) - 2*valid_size:len(indices) - 1*valid_size]
-        # test_indices = indices[len(indices) - 1*valid_size:]
-        # torch.save(train_indices, f'./{dataset}_train_indices.pth')
-        # torch.save(valid_indices, f'./{dataset}_valid_indices.pth')
-        # torch.save(test_indices, f'./{dataset}_test_indices.pth')
 
         train_indices = torch.load(f'./data_indices/{dataset}_train_indices.pth')
         valid_indices = torch.load(f'./data_indices/{dataset}_valid_indices.pth')

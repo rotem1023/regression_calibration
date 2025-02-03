@@ -130,13 +130,14 @@ def train(base_model= 'efficientnetb4',
           dataset = 'boneage',
          dist_model_name = 'resnet50',
           batch_size=32,
-          init_lr=0.001,
-          epochs=50,
+          init_lr=0.005,
+          epochs=200,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
           lambda_param=1.0,
+          scale_factor = 100,
           gpu=2,
           level=5):
     print("Current PID:", os.getpid())
@@ -198,7 +199,10 @@ def train(base_model= 'efficientnetb4',
     valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
 
 
-    dist_optimizer = optim.Adam(dist_model.parameters(), lr=1e-3)
+    dist_optimizer = optim.Adam(dist_model.parameters(), lr=init_lr, weight_decay=weight_decay)
+    
+    lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(dist_optimizer, patience=lr_patience, factor=0.1)
+
     loss_dist = CustomMSELoss(lambda_param=lambda_param)
 
 
@@ -238,8 +242,8 @@ def train(base_model= 'efficientnetb4',
 
                 # Forward pass for distance model
                 predicted_distances = dist_model(data)
-                true_d_plus = torch.clamp(targets - mu, min=0) # True d+
-                true_d_minus = torch.clamp(mu - targets, min=0) # True d-
+                true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
+                true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                 true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
 
                 # Compute loss for distance model
@@ -262,10 +266,10 @@ def train(base_model= 'efficientnetb4',
 
                 batch_counter += 1
                 
-    
+
             avg_dist_loss = sum(dist_train_loss) / len(dist_train_loss)
             print(f"Epoch {e+1}/{epochs} -  Distance Loss: {avg_dist_loss:.4f}")
-
+            lr_scheduler_net.step(np.mean(epoch_train_loss))
 
 
 
@@ -288,12 +292,16 @@ def train(base_model= 'efficientnetb4',
 
                     # -------- Evaluate Distance Model --------
                     predicted_distances = dist_model(data) # Predict d+ and d-
-                    true_d_plus = torch.clamp(targets - mu, min=0)  # True d+
-                    true_d_minus = torch.clamp(mu - targets, min=0)  # True d-
+                    print("Predicted distances:", predicted_distances[:1])
+                    true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
+                    true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
+                    print("true distance:", true_distances[:1])
 
                     dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
                     dist_valid_loss.append(dist_loss.item())
+                    
+                    epoch_valid_loss.append(loss_dist(predicted_distances.float(), true_distances.float()).item())
 
                     writer.add_scalar('dist_valid/loss', dist_loss.item(), batch_counter_valid)
 

@@ -202,7 +202,7 @@ def train(base_model= 'efficientnetb4',
     else:
         assert False
 
-    if dataset == 'breastpathq' or 'boneage':
+    if dataset == 'breastpathq' or dataset =='boneage':
         optimizer_net = optim.SGD(model.parameters(), lr=init_lr, weight_decay=weight_decay, momentum=0.9)
         print("SGD(model.parameters(), lr=init_lr, weight_decay=weight_decay, momentum=0.9)")
     else:
@@ -233,7 +233,7 @@ def train(base_model= 'efficientnetb4',
             for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
                 data, targets = data.to(device), targets.to(device)
                 optimizer_net.zero_grad()
-                mu, logvar, _ = model(data, dropout=True)
+                mu, logvar, _ = model(data, dropout=False)
                 if torch.isnan(mu).any().item():
                     print("None in mu, epoch:", e)
                     continue
@@ -275,7 +275,7 @@ def train(base_model= 'efficientnetb4',
             with torch.no_grad():
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
-                    mu, logvar, _ = model(data, dropout=True)
+                    mu, logvar, _ = model(data, dropout=False)
                     loss = nll_criterion(mu, logvar, targets).to(device)
                     epoch_valid_loss.append(loss.item())
 
