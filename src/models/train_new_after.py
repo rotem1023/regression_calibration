@@ -26,11 +26,12 @@ import load_trained_models
 from torch.utils.data import Dataset, DataLoader
 
 
-def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, is_best = False):
+def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, is_best = False):
     suffix = 'best' if is_best else 'new'
-    os.makedirs('/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new', exist_ok=True)
+    save_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new'
+    os.makedirs(save_dir, exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
-    filename = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_{suffix}.pth.tar"
+    filename = f"{save_dir}/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_scale_factor{int(scale_factor)}_{suffix}.pth.tar"
     print(f"Saving snapshot, path: {filename}")
     torch.save({
         'epoch': epoch,
@@ -125,10 +126,10 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'boneage',
-         dist_model_name = 'resnet50',
+          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.005,
           epochs=200,
@@ -137,8 +138,8 @@ def train(base_model= 'efficientnetb4',
           lr_patience=20,
           weight_decay=1e-8,
           lambda_param=1.0,
-          scale_factor = 100,
-          gpu=2,
+          scale_factor = 1,
+          gpu=3,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -183,8 +184,8 @@ def train(base_model= 'efficientnetb4',
         data_set_valid = BoneAgeDataset(augment=False, resize_to=resize_to,group='valid')
         
         model = load_trained_models.get_model_boneage(base_model, None, device)
-        dist_model = DistancePredictor(dist_model_name, in_channels = 1).to(device)
-
+        dist_model = DistancePredictor(dist_model_name, in_channels = 3).to(device)
+        
     else:
         assert False
 
@@ -235,6 +236,7 @@ def train(base_model= 'efficientnetb4',
                 data, mu, targets = data.to(device), mu.to(device), targets.to(device)
                 
                 if dataset =='boneage':
+                    data = data.repeat(1, 3, 1, 1)
                     targets = targets.squeeze(-1)
 
                 # -------- Train Distance Predictor Model (predicting d+ and d-) --------
@@ -285,6 +287,7 @@ def train(base_model= 'efficientnetb4',
                     data, mu,  targets = data.to(device), mu.to(device), targets.to(device)
 
                     if dataset =='boneage':
+                        data = data.repeat(1, 3, 1, 1)
                         targets = targets.squeeze(-1)
 
                     targets_valid.append(targets.detach().cpu())
@@ -322,12 +325,12 @@ def train(base_model= 'efficientnetb4',
             dist_losses.append(epoch_dist_valid_loss)  # Store distance model's validation loss
 
             if valid_losses[-1] <= np.min(valid_losses):
-                save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, is_best=True)
+                save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, scale_factor=scale_factor, is_best=True)
 
 
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param)
+            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)
     except KeyboardInterrupt:
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param)
+            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)
             
             
 if __name__ == '__main__':

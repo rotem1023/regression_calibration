@@ -189,6 +189,8 @@ class BreastPathQModelOneOutput(nn.Module):
         return output  # Returns a single scalar per input  # Returns a single scalar per input
 
 
+
+
 class DistancePredictor(nn.Module):
     def __init__(self, base_model='resnet50', in_channels=3):
         super(DistancePredictor, self).__init__()
@@ -197,15 +199,21 @@ class DistancePredictor(nn.Module):
             self.base_model = resnet50(pretrained=True)
             num_features = self.base_model.fc.in_features
             self.base_model.fc = nn.Linear(num_features, 2)
+            nn.init.kaiming_normal_(self.base_model.fc.weight, nonlinearity='relu')
+            nn.init.constant_(self.base_model.fc.bias, 0.1)
+
         elif base_model == 'densenet121':
             self.base_model = densenet121(pretrained=True)
             num_features = self.base_model.classifier.in_features
-            self.base_model.classifier = nn.Linear(num_features, 1)
+            self.base_model.classifier = nn.Linear(num_features, 2)  # Fix: Should output 2 values
+            nn.init.kaiming_normal_(self.base_model.classifier.weight, nonlinearity='relu')
+            nn.init.constant_(self.base_model.classifier.bias, 0.1)
+
         else:
             raise NotImplementedError(f"Only resnet50 and densenet121 are supported, got {base_model}")
 
-        # Modify the first convolutional layer to accept `in_channels`
-        if in_channels != 3:  # Only modify if necessary
+        # Modify the first convolutional layer if necessary
+        if in_channels != 3:
             old_conv = self.base_model.conv1
             self.base_model.conv1 = nn.Conv2d(
                 in_channels=in_channels, 
@@ -215,19 +223,15 @@ class DistancePredictor(nn.Module):
                 padding=old_conv.padding, 
                 bias=old_conv.bias is not None
             )
-        
-        # Initialize the modified layers
-        nn.init.xavier_uniform_(self.base_model.fc.weight)
-        nn.init.constant_(self.base_model.fc.bias, 0.1)
 
-        # Use Softplus activation for non-negative outputs
-        self.relu = nn.Softplus(beta=1)
+        # Softplus ensures non-negative outputs
+        self.activation = nn.Softplus(beta=1)
 
     def forward(self, x):
-        distances = self.base_model(x)  # Get two outputs (d+ and d-)
-        distances = self.relu(distances)  # Apply Softplus for non-negative predictions
+        distances = self.base_model(x)  # Predict two distances
+        distances = self.activation(distances)  # Ensure non-negativity
         return distances
-    
+
     
 class DistancePredictorOneOutput(nn.Module):
     def __init__(self, base_model='resnet50'):
@@ -243,7 +247,8 @@ class DistancePredictorOneOutput(nn.Module):
 
         num_features = self.base_model.fc.in_features
         self.base_model.fc = nn.Linear(num_features, 1)
-        nn.init.xavier_uniform_(self.base_model.fc.weight)
+        # nn.init.xavier_uniform_(self.base_model.fc.weight)
+        nn. init.kaiming_normal_(self.base_model.fc.weight, nonlinearity='relu')
         nn.init.constant_(self.base_model.fc.bias, 0.1)
 
         # Add a new layer to predict d+ and d-
