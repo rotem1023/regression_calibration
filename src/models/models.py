@@ -214,15 +214,28 @@ class DistancePredictor(nn.Module):
 
         # Modify the first convolutional layer if necessary
         if in_channels != 3:
-            old_conv = self.base_model.conv1
-            self.base_model.conv1 = nn.Conv2d(
-                in_channels=in_channels, 
-                out_channels=old_conv.out_channels, 
-                kernel_size=old_conv.kernel_size, 
-                stride=old_conv.stride, 
-                padding=old_conv.padding, 
-                bias=old_conv.bias is not None
-            )
+            if hasattr(self.base_model, "conv1"):  # Works for ResNet
+                old_conv = self.base_model.conv1
+                self.base_model.conv1 = nn.Conv2d(
+                    in_channels=in_channels, 
+                    out_channels=old_conv.out_channels, 
+                    kernel_size=old_conv.kernel_size, 
+                    stride=old_conv.stride, 
+                    padding=old_conv.padding, 
+                    bias=old_conv.bias is not None
+                )
+            elif hasattr(self.base_model.features, "conv0"):  # Works for DenseNet
+                old_conv = self.base_model.features.conv0
+                self.base_model.features.conv0 = nn.Conv2d(
+                    in_channels=in_channels, 
+                    out_channels=old_conv.out_channels, 
+                    kernel_size=old_conv.kernel_size, 
+                    stride=old_conv.stride, 
+                    padding=old_conv.padding, 
+                    bias=old_conv.bias is not None
+                )
+            else:
+                raise AttributeError(f"Unknown first conv layer in {base_model}")
 
         # Softplus ensures non-negative outputs
         self.activation = nn.Softplus(beta=1)
@@ -231,6 +244,129 @@ class DistancePredictor(nn.Module):
         distances = self.base_model(x)  # Predict two distances
         distances = self.activation(distances)  # Ensure non-negativity
         return distances
+
+
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.relu = nn.ReLU()
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        
+        # Skip connection is automatically added by matching input/output dimensions
+        self.shortcut = nn.Sequential()
+        if in_channels != out_channels:
+            self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=1)
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.relu(out)
+        out = self.conv2(out)
+        
+        # Add the skip connection
+        out += self.shortcut(x)
+        
+        return self.relu(out)
+
+class DistancePredictorWithSkip(nn.Module):
+    def __init__(self, base_model='resnet50', in_channels=3):
+        super(DistancePredictorWithSkip, self).__init__()
+
+        if base_model == 'resnet50':
+            self.base_model = resnet50(pretrained=True)
+            num_features = self.base_model.fc.in_features
+            self.base_model.fc = nn.Identity()  # Remove default FC layer
+
+        elif base_model == 'densenet121':
+            self.base_model = densenet121(pretrained=True)
+            num_features = self.base_model.classifier.in_features
+            self.base_model.classifier = nn.Identity()  # Remove default classifier
+
+        # Skip connection layers
+        self.residual_block1 = ResidualBlock(num_features, num_features // 2)
+        self.residual_block2 = ResidualBlock(num_features // 2, num_features // 4)
+
+        # Output layers
+        self.fc1 = nn.Linear(num_features // 4, 128)
+        self.fc2 = nn.Linear(128, 1)  # Output for distance 1
+        self.fc3 = nn.Linear(128, 1)  # Output for distance 2
+
+        self.activation = nn.Softplus(beta=1)
+
+    def forward(self, x):
+        x = self.base_model(x)
+        
+        # Apply skip connection blocks
+        x = self.residual_block1(x)
+        x = self.residual_block2(x)
+
+        # Final fully connected layers
+        x = self.fc1(x)
+        x = self.activation(x)
+
+        dist1 = self.fc2(x)  # First distance prediction
+        dist2 = self.fc3(x)  # Second distance prediction
+        return torch.cat([dist1, dist2], dim=1)
+    
+import torch
+import torch.nn as nn
+import torchvision.models as models
+
+class MultiHeadDistancePredictor(nn.Module):
+    def __init__(self, base_model='resnet50', in_channels=3):
+        super(MultiHeadDistancePredictor, self).__init__()
+
+        if base_model == 'resnet50':
+            self.base_model = models.resnet50(pretrained=True)
+            num_features = self.base_model.fc.in_features
+            self.base_model.fc = nn.Identity()  # Remove the last FC layer
+        elif base_model == 'densenet121':
+            self.base_model = models.densenet121(pretrained=True)
+            num_features = self.base_model.classifier.in_features
+            self.base_model.classifier = nn.Identity()  # Remove the last FC layer
+        else:
+            raise NotImplementedError(f"Only resnet50 and densenet121 are supported, got {base_model}")
+
+        # Modify the first convolutional layer if necessary
+        if in_channels != 3:
+            if hasattr(self.base_model, "conv1"):  # Works for ResNet
+                old_conv = self.base_model.conv1
+                self.base_model.conv1 = nn.Conv2d(
+                    in_channels=in_channels, 
+                    out_channels=old_conv.out_channels, 
+                    kernel_size=old_conv.kernel_size, 
+                    stride=old_conv.stride, 
+                    padding=old_conv.padding, 
+                    bias=old_conv.bias is not None
+                )
+            elif hasattr(self.base_model.features, "conv0"):  # Works for DenseNet
+                old_conv = self.base_model.features.conv0
+                self.base_model.features.conv0 = nn.Conv2d(
+                    in_channels=in_channels, 
+                    out_channels=old_conv.out_channels, 
+                    kernel_size=old_conv.kernel_size, 
+                    stride=old_conv.stride, 
+                    padding=old_conv.padding, 
+                    bias=old_conv.bias is not None
+                )
+            else:
+                raise AttributeError(f"Unknown first conv layer in {base_model}")
+
+        # Classification head (Binary)
+        self.fc_classification = nn.Linear(num_features, 1)  # 1 logit for binary classification
+        
+        # Regression head (Nonzero distance)
+        self.fc_regression = nn.Linear(num_features, 1)  # 1 value for distance
+        self.activation = nn.Softplus(beta=1)  # Ensure non-negative distances
+
+    def forward(self, x):
+        features = self.base_model(x)
+        features = torch.flatten(features, 1)
+
+        class_logits = self.fc_classification(features)  # Binary classification logits
+        regression_output = self.activation(self.fc_regression(features))  # Non-negative regression output
+        
+        return class_logits, regression_output
 
     
 class DistancePredictorOneOutput(nn.Module):

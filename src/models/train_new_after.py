@@ -18,7 +18,7 @@ from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
-from models import BreastPathQModel, DistancePredictor
+from models import BreastPathQModel, DistancePredictor, MultiHeadDistancePredictor
 from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
 import torch.nn as nn
@@ -61,7 +61,7 @@ def aggregate_results(base_dataset, model, device):
 
     data_list, mu_list, target_list = [], [], []
     with torch.no_grad():
-        for data, target in tqdm(base_dataset, desc="Aggregating results"):
+        for batch_idx, (data, target) in enumerate(tqdm(base_dataset, desc="Aggregating results")):
             # Move data to the appropriate device
             data = data.to(device)  # Add batch dimension
             if data.shape[0] != 32:
@@ -75,6 +75,9 @@ def aggregate_results(base_dataset, model, device):
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
             target_list.append(target.cpu())
+            if (batch_idx> 1):
+                break
+            
 
 
         
@@ -125,8 +128,82 @@ class CustomMSELoss(nn.Module):
         total_loss = torch.mean(loss_smaller + loss_larger)
                 
         return total_loss
+    
+# class CustomMSELoss(nn.Module):
+#     def __init__(self, lambda_param=1.0):
+#         super(CustomMSELoss, self).__init__()
+#         self.lambda_param = lambda_param
+    
+#     def forward(self, y_pred, y_true):
+#         # Standard MSE loss
+#         mse_loss = torch.mean((y_pred - y_true) ** 2)
 
-def train(base_model= 'densenet201',
+#         # Enforce sparsity: at least one value per pair should be zero
+#         zero_constraint = torch.mean(torch.abs(y_pred[:, 0] * y_pred[:, 1]))
+
+#         # Combine the two losses
+#         total_loss = mse_loss + self.lambda_param * zero_constraint
+
+#         print(f"lambda: {self.lambda_param} mse loss: {mse_loss} , zero loss: {self.lambda_param * zero_constraint}, without lambda: {zero_constraint}")
+        
+#         return total_loss
+
+def loss_function(class_logits, regression_output, class_labels, regression_labels):
+    classification_loss = nn.BCEWithLogitsLoss()(class_logits.squeeze(), class_labels.float())
+    regression_loss = nn.SmoothL1Loss()(regression_output.squeeze(), regression_labels)
+    
+    # Combine losses with a weighting factor
+    total_loss = classification_loss + regression_loss
+    return total_loss
+
+
+def transform_labels(labels):
+    class_labels = (labels[:, 1] != 0).long()  # 1 if neg_dist is nonzero, else 0
+    regression_labels = labels.max(dim=1)[0]  # Take the nonzero value
+    return class_labels, regression_labels
+
+def print_grad_norms(dist_model):
+    # Get all the named parameters of the model
+    named_params = list(dist_model.named_parameters())
+    
+    # First 10 layers
+    first_10_layers = named_params[:5]
+    
+    # Last 10 layers
+    last_10_layers = named_params[-5:]
+    
+    # Print the gradient norm for the first 10 layers
+    print("First 5 Layers:")
+    for name, param in first_10_layers:
+        if param.grad is not None:
+            print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+    
+    # Print the gradient norm for the last 10 layers
+    print("Last 5 Layers:")
+    for name, param in last_10_layers:
+        if param.grad is not None:
+            print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+
+
+import torch
+
+def convert_logits_to_labels(class_logits):
+    """
+    Converts class logits into binary labels (0 for pos_dist, 1 for neg_dist).
+    
+    Args:
+        class_logits (torch.Tensor): Logits from the classification head.
+
+    Returns:
+        torch.Tensor: Binary labels (0 or 1).
+    """
+    class_probs = torch.sigmoid(class_logits)  # Convert logits to probabilities
+    pred_class = (class_probs > 0.5).long()  # Threshold at 0.5
+
+    return pred_class
+
+
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'boneage',
           dist_model_name = 'resnet50',
@@ -137,9 +214,9 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          lambda_param=1.0,
+          lambda_param=1,
           scale_factor = 1,
-          gpu=3,
+          gpu=2,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -184,7 +261,7 @@ def train(base_model= 'densenet201',
         data_set_valid = BoneAgeDataset(augment=False, resize_to=resize_to,group='valid')
         
         model = load_trained_models.get_model_boneage(base_model, None, device)
-        dist_model = DistancePredictor(dist_model_name, in_channels = 3).to(device)
+        dist_model = MultiHeadDistancePredictor(dist_model_name, in_channels = 1).to(device)
         
     else:
         assert False
@@ -236,28 +313,32 @@ def train(base_model= 'densenet201',
                 data, mu, targets = data.to(device), mu.to(device), targets.to(device)
                 
                 if dataset =='boneage':
-                    data = data.repeat(1, 3, 1, 1)
+                    # data = data.repeat(1, 3, 1, 1)
                     targets = targets.squeeze(-1)
 
                 # -------- Train Distance Predictor Model (predicting d+ and d-) --------
                 dist_optimizer.zero_grad()
 
                 # Forward pass for distance model
-                predicted_distances = dist_model(data)
+                # predicted_distances = dist_model(data)
+                class_logits, regression_output = dist_model(data)
                 true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
                 true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                 true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
+                
+                 # Transform labels for multi-head learning
+                class_labels, regression_labels = transform_labels(true_distances)
+                class_labels, regression_labels = class_labels.to(device), regression_labels.to(device)
 
                 # Compute loss for distance model
-                dist_loss = loss_dist(predicted_distances.float(), true_distances.float())
-                # dist_loss.backward(retain_graph=True)
-                # dist_optimizer.step()
+                dist_loss = loss_function(class_logits, regression_output, class_labels, regression_labels)
+                # dist_loss = loss_dist(predicted_distances.float(), true_distances.float())
 
                 # Backward pass for the combined loss
                 dist_loss.backward()
-                # for name, param in dist_model.named_parameters():
-                #     if param.grad is not None:
-                #         print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+                print_grad_norms(dist_model=dist_model)
+                
+                
                 dist_optimizer.step()
                 
 
@@ -287,24 +368,31 @@ def train(base_model= 'densenet201',
                     data, mu,  targets = data.to(device), mu.to(device), targets.to(device)
 
                     if dataset =='boneage':
-                        data = data.repeat(1, 3, 1, 1)
+                        # data = data.repeat(1, 3, 1, 1)
                         targets = targets.squeeze(-1)
 
                     targets_valid.append(targets.detach().cpu())
 
 
                     # -------- Evaluate Distance Model --------
-                    predicted_distances = dist_model(data) # Predict d+ and d-
-                    print("Predicted distances:", predicted_distances[:1])
+                    # predicted_distances = dist_model(data) # Predict d+ and d-
+                    class_logits, regression_output = dist_model(data)
+                    # print("Predicted distances:", predicted_distances[:1])
                     true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
                     true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
-                    print("true distance:", true_distances[:1])
-
-                    dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
+                    class_labels, regression_labels = transform_labels(true_distances)
+                    class_labels, regression_labels = class_labels.to(device), regression_labels.to(device)
+                    
+                    print(f"class labels true: {class_labels[0]}, predict: {convert_logits_to_labels(class_logits)[0].item()}. distances true: {regression_labels[0]}, predicted: {regression_output[0].item()}, accuracy: {(class_labels == convert_logits_to_labels(class_logits)).float().mean()}")
+                    # print("true distance:", true_distances[:1])
+                    
+                    dist_loss = loss_function(class_logits, regression_output, class_labels, regression_labels)
+                    # dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
                     dist_valid_loss.append(dist_loss.item())
                     
-                    epoch_valid_loss.append(loss_dist(predicted_distances.float(), true_distances.float()).item())
+                    epoch_valid_loss.append(nn.functional.l1_loss(regression_output.float(), regression_labels.float()).item())
+                    # epoch_valid_loss.append(loss_dist(predicted_distances.float(), true_distances.float()).item())
 
                     writer.add_scalar('dist_valid/loss', dist_loss.item(), batch_counter_valid)
 
@@ -330,7 +418,8 @@ def train(base_model= 'densenet201',
 
             save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)
     except KeyboardInterrupt:
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)
+            print("error")
+            # save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)
             
             
 if __name__ == '__main__':

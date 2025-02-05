@@ -1,5 +1,5 @@
 
-from models import BreastPathQModel, BreastPathQModelOneOutput, DistancePredictor, DistancePredictorOneOutput
+from models import BreastPathQModel, BreastPathQModelOneOutput, DistancePredictor, DistancePredictorOneOutput, MultiHeadDistancePredictor
 import torch
 
 def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, loss = "gaussian", one_out = False):
@@ -29,7 +29,7 @@ def get_model_boneage(model_name, base_model, device, lambda_param =5, loss = 'g
             model = DistancePredictorOneOutput(model_name, in_channels=1).to(device)
             models_dir = f"{models_dir}/one_output"  
         else:
-            model = DistancePredictor(model_name, in_channels=1).to(device)
+            model = MultiHeadDistancePredictor(model_name, in_channels=1).to(device)
         lambda_st = f"_lambda_{lambda_param}"
         checkpoint = torch.load(f'{models_dir}/{model_name}_boneage_snapshot_dist_{base_model}{lambda_st}_scale_factor1_new.pth.tar', map_location=device)
     else:

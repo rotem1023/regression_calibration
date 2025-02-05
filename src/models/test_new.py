@@ -118,7 +118,21 @@ def get_saved_dir(results_dir, dataset, base_model, dist_model, loss,group,  lev
     os.makedirs(cur_dir, exist_ok=True)
     return cur_dir
 
+
+def convert_logits_to_labels(class_logits):
+    """
+    Converts class logits into binary labels (0 for pos_dist, 1 for neg_dist).
     
+    Args:
+        class_logits (torch.Tensor): Logits from the classification head.
+
+    Returns:
+        torch.Tensor: Binary labels (0 or 1).
+    """
+    class_probs = torch.sigmoid(class_logits)  # Convert logits to probabilities
+    pred_class = (class_probs > 0.5).long()  # Threshold at 0.5
+
+    return pred_class
 
 def save_arrays(results_dir, dataset, base_model, dist_model, loss, group, level, lambda_param, scale_factor, y, mu, logvar, positive_distance, negative_distance):
     saved_dir = get_saved_dir(results_dir=results_dir, dataset=dataset, base_model=base_model, dist_model=dist_model, loss = loss, group = group, level=level, lambda_param = lambda_param, scale_factor = scale_factor)
@@ -158,13 +172,19 @@ def get_arrays(data_loader, model, dist_model, device, one_output = False, scale
             targets_s.append(target.detach()) 
                         
             if dist_model is not None:
-                distances = dist_model(data).detach()
+                # distances = dist_model(data).detach()
+                class_logits, regression_output = dist_model(data)
+                class_labels = convert_logits_to_labels(class_logits=class_logits)
+                zero_tensor = torch.zeros_like(regression_output)
                 if one_output:
                     positive_dist_s.append(distances.squeeze(-1))
                     negative_dist_s.append(distances.squeeze(-1))
                 else:
-                    positive_dist_s.append(distances[:,0])
-                    negative_dist_s.append(distances[:,1])
+                    positive_dist_s.append(torch.where(class_labels == 1, zero_tensor, regression_output).squeeze(-1))
+                    negative_dist_s.append(torch.where(class_labels == 0, zero_tensor, regression_output).squeeze(-1))
+                    # positive_dist_s.append(distances[:,0])
+                    # negative_dist_s.append(distances[:,1])
+
 
             
                     
@@ -231,7 +251,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     dataset = 'boneage'
     loss = 'gaussian'
     one_output = False
-    load_results = True
+    load_results = False
     scale_factor = 1.0
     lambda_param = 1
     iters = 20

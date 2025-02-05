@@ -7,7 +7,7 @@ from torchvision import transforms
 from scipy.ndimage.interpolation import zoom
 from tqdm import tqdm
 from glob import glob
-
+from ThreadSafeDict import ThreadSafeDict
 
 class OCTDataset(Dataset):
     """
@@ -114,43 +114,38 @@ class OCTDataset(Dataset):
         return x, y
 
 
-def demo():
-    from matplotlib import pyplot as plt
+def to_pil_and_resize(x, new_size):
+    trans_always1 = [
+            transforms.ToPILImage(),
+            transforms.Resize(new_size, interpolation=1),
+    ]
 
-    dataset_train = OCTDataset(data_dir='/media/data/oct_data_needle/data',
-                                   augment=False, preload=False)
-    data_loader_train = DataLoader(dataset_train, batch_size=1, shuffle=True)
-
-    print("Train dataset length:", len(data_loader_train))
-
-    for i_batch, b in enumerate(data_loader_train):
-        x, y = b
-        print(i_batch, y)
-
-        fig, ax = plt.subplots(3, 1)
-        ax[0].imshow(x.data.cpu().numpy()[0, 0])
-        ax[1].imshow(x.data.cpu().numpy()[0, 1])
-        ax[2].imshow(x.data.cpu().numpy()[0, 2])
-
-        fig.show()
-
-        ret = plt.waitforbuttonpress(0.0)
-        if ret:
-            break
-
-        plt.close()
+    trans = transforms.Compose(trans_always1)
+    x = trans(x)
+    return x
 
 
-def perf_test():
-    dataset_train = OCTDataset(data_dir='/Users/max-heinrichlaves/Desktop/oct_data_needle/data',
-                                   augment=False, preload=True)
-    data_loader_train = DataLoader(dataset_train, batch_size=1, shuffle=True)
+def argmax_project(x):
+    y = [np.argmax(x, axis=0), np.argmax(x, axis=1), np.argmax(x, axis=2)]
+    return np.stack(y, axis=-1).astype(np.uint8)
 
-    print("Train dataset length:", len(data_loader_train))
+def load_npz(file_name, rescale=True):
+    f = np.load(file_name)
+    img = f['data']
+    pos = f['pos']
 
-    for b in tqdm(data_loader_train):
-        x, y = b
+    img = img[8:]  # crop top 8 rows
+    min_shape = np.min(img.shape)
+    if rescale:
+        img = zoom(img,
+                       zoom=(min_shape / img.shape[0],
+                             min_shape / img.shape[1],
+                             min_shape / img.shape[2]),
+                       order=0)
 
+    img = img.transpose(2, 0, 1)  # permute data as it is in FORTRAN order
+
+    return img, pos
 
 def calc_mean_std():
     dataset = OCTDataset(data_dir='/media/data/OBRDataset/OBRDataset', augment=False, preload=False)
@@ -166,9 +161,82 @@ def calc_mean_std():
     return accu.mean(), accu.std()
 
 
-if __name__ == "__main__":
-    # mean, std = calc_mean_std()
-    # print("mean =", mean)
-    # print("std =", std)
-    demo()
-    # perf_test()
+
+class OCTDataset(Dataset):
+    """
+    Loads the rsna bone age data set
+    """
+
+    def __init__(self, group, data_dir='/home/dsi/rotemnizhar/Downloads/rsna-bone-age/',
+                 resize_to=(256, 256), augment=False):
+        """
+        Given the root directory of the dataset, this function initializes the
+        data set
+
+        :param data_dir: List with paths of raw images
+        """
+        
+        # max values of output for normalization
+        self._max_vals = np.array([0.999612, 0.999535, 0.599804, 5.99884, 5.998696, 7.998165])
+        self._resize_to = resize_to
+        self._data_dir = data_dir
+        self._augment = augment
+
+        self._df = pd.read_csv(self._data_dir+f'/boneage-training-dataset.csv')
+
+        self._img_file_names = []
+        labels = []
+
+        for i in range(self._df.shape[0]):
+            # self._img_file_names.append(self._data_dir+f"/boneage-training-dataset/boneage-training-dataset/"
+            #                                            f"{self._df['id'][i]}.png")
+            self._img_file_names.append(self._data_dir+f"/boneage-training-dataset/"
+                                                       f"{self._df['id'][i]}.png")
+            labels.append(self._df['boneage'][i])
+
+
+        # normalize labels
+        labels = np.array(labels, dtype=np.float64)
+        labels = labels - labels.min()
+        labels = labels / labels.max()
+        self._labels = torch.tensor(labels).float().unsqueeze(-1)
+
+        self._data__indices_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/data_indices"
+        indices = torch.load(f'{self._data__indices_dir}/boneage_{group}_indices.pth')
+
+        self._indices = indices
+            
+            
+
+
+    def __len__(self):
+        return len(self._indices)
+
+    def __getitem__(self, idx):
+        global IMGS
+        # x = IMGS[self._img_file_names[idx]]
+        file_name = self._img_file_names[idx].split("/")[-1]
+        file_dir = '/home/dsi/rotemnizhar/Downloads/rsna-bone-age/boneage-training-dataset/boneage-training-dataset'
+        if IMGS.contains(file_name):
+            x = IMGS.get(file_name)
+        else:
+            x, label = load_npz(self._img_file_names[idx])
+            label = label/self._max_vals
+            x = argmax_project(x)
+            x = to_pil_and_resize(x, self._resize_to)
+            y = np.array(label, dtype=np.float32)
+            IMGS.set(file_name, x)
+        trans_augment = []
+        if self._augment:
+            trans_augment.append(transforms.RandomApply([transforms.ColorJitter(brightness=0.2, contrast=0.2,
+                                                                                saturation=0.2, hue=0.1)], p=0.5))
+
+        trans_always2 = [
+            transforms.ToTensor(),
+        ]
+        trans = transforms.Compose(trans_augment + trans_always2)
+
+        x = trans(x)
+
+        return x, y
+
