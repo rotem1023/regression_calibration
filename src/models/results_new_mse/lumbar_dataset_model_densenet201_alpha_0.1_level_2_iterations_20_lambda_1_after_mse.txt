@@ -1,7 +1,7 @@
-q new addtive mean: 0.06380279008299113, q new addtive std: 0.0010339956760569327
-avg_len new addtive mean: 0.13489272966980934, avg_len new addtive std: 0.0020769299831909483
-avg_cov new addtive mean: 0.9015261232852936, avg_cov new addtive std: 0.010380965455587013
-q new div mean: 119.75704078674316, q new div std: 3.3289867978719356
-avg_len new div mean: 0.8727384716272354, avg_len new div std: 0.028418615989324644
-avg_cov new div mean: 0.898448008298874, avg_cov new div std: 0.009921425407224337
+q new addtive mean: 0.04574473462998867, q new addtive std: 0.0005757602979155486
+avg_len new addtive mean: 0.11760472431778908, avg_len new addtive std: 0.0012193387201419345
+avg_cov new addtive mean: 0.8961458921432495, avg_cov new addtive std: 0.0067989896936853905
+q new div mean: 6.7404300451278685, q new div std: 0.21520696023907812
+avg_len new div mean: 0.17602438405156134, avg_len new div std: 0.005718326340283022
+avg_cov new div mean: 0.8966890901327134, avg_cov new div std: 0.009116430930664363
 lumbar, densenet201, 0.1, 2
