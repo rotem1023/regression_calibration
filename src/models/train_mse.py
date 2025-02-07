@@ -25,7 +25,7 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
@@ -103,20 +103,15 @@ def train(base_model= 'efficientnetb4',
 
         data_dir = '/media/fastdata/laves/oct_data_needle/data'
 
-        data_set_train = OCTDataset(data_dir=data_dir, augment=True, resize_to=resize_to, preload=True)
-        data_set_valid = OCTDataset(data_dir=data_dir, augment=False, preloaded_data_from=data_set_train)
+        data_set_train = OCTDataset(group='train', augment=True, resize_to=resize_to, preload=True)
+        data_set_valid = OCTDataset(group='valid', augment=False, preloaded_data_from=data_set_train)
 
         assert len(data_set_train) > 0
         assert len(data_set_valid) > 0
 
 
-        train_indices = torch.load(f'./data_indices/{dataset}_train_indices.pth')
-        valid_indices = torch.load(f'./data_indices/{dataset}_valid_indices.pth')
-
-        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(train_indices))
-        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(valid_indices))
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=32, shuffle=True)
     else:
         assert False
     model = BreastPathQModelOneOutput(base_model, in_channels=in_channels, out_channels=out_channels,
@@ -125,7 +120,7 @@ def train(base_model= 'efficientnetb4',
     
 
 
-    nll_criterion = torch.nn.functional.mse_loss
+    loss_criterion = torch.nn.functional.mse_loss
     metric = torch.nn.functional.mse_loss
 
 
@@ -160,7 +155,7 @@ def train(base_model= 'efficientnetb4',
                 data, targets = data.to(device), targets.to(device)
                 optimizer_net.zero_grad()
                 mu = model(data)
-                loss = nll_criterion(mu, targets).to(device)
+                loss = loss_criterion(mu, targets).to(device)
                 loss.backward()
                 epoch_train_loss.append(loss.item())
                 optimizer_net.step()
@@ -195,7 +190,7 @@ def train(base_model= 'efficientnetb4',
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
                     mu = model(data)
-                    loss = nll_criterion(mu,targets).to(device)
+                    loss = loss_criterion(mu,targets).to(device)
                     epoch_valid_loss.append(loss.item())
 
                     targets_valid.append(targets.detach().cpu())
