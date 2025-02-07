@@ -12,6 +12,8 @@ def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, los
         else:
             model = DistancePredictor(model_name).to(device)
         lambda_st = f"_lambda_{lambda_param}"
+        if loss =="mse":
+            models_dir = f"{models_dir}_mse"
         checkpoint = torch.load(f'{models_dir}/{model_name}_lumbar_L{level}_snapshot_dist_{base_model}{lambda_st}_new.pth.tar', map_location=device)
     else:
         if loss == "gaussian":

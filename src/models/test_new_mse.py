@@ -61,12 +61,6 @@ def calc_stats_new_method(target, mu, poistive_dist, negative_dist, q, div = Fal
     return length, coverage
 
 
-def calc_stats(q, target, mu, sd):
-    lower = mu - q * sd
-    upper = mu + q * sd
-    length = calc_length(lower, upper)
-    coverage = calc_coverage(lower, upper, target)
-    return length, coverage
 
 def  calc_coverage(lower, upper, target):
     coverage = (lower <= target) & (target <= upper)
@@ -145,6 +139,7 @@ def get_arrays(data_loader, model, dist_model, device, one_output = False, scale
                     positive_dist_s.append(distances[:,0])
                     negative_dist_s.append(distances[:,1])
 
+
             
                     
     return torch.cat(y_p_s).cpu(), torch.cat(targets_s).cpu(), torch.cat(positive_dist_s).cpu() / float(scale_factor), torch.cat(negative_dist_s).cpu() / float(scale_factor)     
@@ -185,7 +180,7 @@ def shuffle_arrays(calib_arrays, test_arrays):
    
 
 def get_dir_results(one_output = False):
-    resutls_dir_path = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results_new'
+    resutls_dir_path = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results_new_mse'
     if one_output:
         resutls_dir_path = f"{resutls_dir_path}/one_output"
     os.makedirs(resutls_dir_path, exist_ok=True)
@@ -203,11 +198,11 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:1")
-    dataset = 'boneage'
+    device = torch.device("cuda:3")
+    dataset = 'lumbar'
     loss = 'mse'
     one_output = False
     load_results = False
@@ -215,7 +210,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     lambda_param = 1
     iters = 20
     level = 1
-    alpha = 0.05
+    alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
@@ -332,7 +327,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         before_cov_test = calc_coverage_add(mu_test, target_test, positive_dist_test, negative_dist_test, 0)
         print(f'before_cov_val: {before_cov_val}, before_cov_test: {before_cov_test}')
             
-            
+        true_d_plus = torch.clamp(target_calib - mu_calib, min=0) # True d+
+        true_d_minus = torch.clamp(mu_calib - targets_calib, min=0) # True d-
         q_add = calc_opt_q_new_method(target_calib, mu_calib, positive_dist_calib, negative_dist_calib, alpha , True)
             
         # cal avg new len and cov valid set

@@ -25,7 +25,7 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
@@ -35,7 +35,7 @@ def train(base_model= 'densenet201',
           lr_patience=20,
           weight_decay=1e-8,
           gpu=0,
-          level=2):
+          level=4):
     print("Current PID:", os.getpid())
 
     likelihood = 'mse'
