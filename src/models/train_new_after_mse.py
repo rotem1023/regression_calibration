@@ -125,9 +125,9 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
-          dataset = 'boneage',
+          dataset = 'lumbar',
          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.001,
@@ -138,7 +138,7 @@ def train(base_model= 'densenet201',
           weight_decay=1e-8,
           lambda_param=1.0,
           gpu=1,
-          level=5):
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -302,6 +302,7 @@ def train(base_model= 'densenet201',
 
             # Compute metrics for the epoch
             epoch_dist_valid_loss = np.mean(dist_valid_loss)
+            valid_losses.append(epoch_dist_valid_loss)
             targets_valid = torch.cat(targets_valid, dim=0)
 
             print(f"Epoch {e}:")

@@ -26,16 +26,16 @@ torch.backends.cudnn.benchmark = True
 
 
 def train(base_model= 'densenet201',
-          dataset = 'boneage',
+          dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=500,
+          epochs=50,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=1,
-          level=5):
+          gpu=0,
+          level=2):
     print("Current PID:", os.getpid())
 
     likelihood = 'mse'
@@ -159,7 +159,7 @@ def train(base_model= 'densenet201',
             for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
                 data, targets = data.to(device), targets.to(device)
                 optimizer_net.zero_grad()
-                mu = model(data, dropout=True)
+                mu = model(data)
                 loss = nll_criterion(mu, targets).to(device)
                 loss.backward()
                 epoch_train_loss.append(loss.item())
@@ -194,7 +194,7 @@ def train(base_model= 'densenet201',
             with torch.no_grad():
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
-                    mu = model(data, dropout=True)
+                    mu = model(data)
                     loss = nll_criterion(mu,targets).to(device)
                     epoch_valid_loss.append(loss.item())
 

@@ -42,6 +42,29 @@ def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,l
 torch.backends.cudnn.benchmark = True
 
 
+
+def print_grad_norms(dist_model):
+    # Get all the named parameters of the model
+    named_params = list(dist_model.named_parameters())
+    
+    # First 10 layers
+    first_10_layers = named_params[:5]
+    
+    # Last 10 layers
+    last_10_layers = named_params[-5:]
+    
+    # Print the gradient norm for the first 10 layers
+    print("First 5 Layers:")
+    for name, param in first_10_layers:
+        if param.grad is not None:
+            print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+    
+    # Print the gradient norm for the last 10 layers
+    print("Last 5 Layers:")
+    for name, param in last_10_layers:
+        if param.grad is not None:
+            print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+
 def aggregate_results(base_dataset, model, device):
     """
     Computes `mu` for all samples in the base dataset and aggregates results.
@@ -61,7 +84,7 @@ def aggregate_results(base_dataset, model, device):
 
     data_list, mu_list, target_list = [], [], []
     with torch.no_grad():
-        for data, target in tqdm(base_dataset, desc="Aggregating results"):
+        for batch_idx, (data, target) in enumerate(tqdm(base_dataset, desc="Aggregating results")):
             # Move data to the appropriate device
             data = data.to(device)  # Add batch dimension
             if data.shape[0] != 32:
@@ -75,6 +98,8 @@ def aggregate_results(base_dataset, model, device):
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
             target_list.append(target.cpu())
+            if (batch_idx > 1):
+                break
 
 
         
@@ -139,7 +164,7 @@ def train(base_model= 'densenet201',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          gpu=3,
+          gpu=1,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -184,7 +209,7 @@ def train(base_model= 'densenet201',
         data_set_valid = BoneAgeDataset(augment=False, resize_to=resize_to,group='valid')
         
         model = load_trained_models.get_model_boneage(base_model, None, device)
-        dist_model = DistancePredictor(dist_model_name, in_channels = 3).to(device)
+        dist_model = DistancePredictor(dist_model_name, in_channels = 1).to(device)
         
     else:
         assert False
@@ -204,7 +229,7 @@ def train(base_model= 'densenet201',
     
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(dist_optimizer, patience=lr_patience, factor=0.1)
 
-    loss_dist = CustomMSELoss(lambda_param=lambda_param)
+    loss_dist = nn.SmoothL1Loss(beta=lambda_param)
 
 
     train_losses = []
@@ -236,7 +261,7 @@ def train(base_model= 'densenet201',
                 data, mu, targets = data.to(device), mu.to(device), targets.to(device)
                 
                 if dataset =='boneage':
-                    data = data.repeat(1, 3, 1, 1)
+                    # data = data.repeat(1, 3, 1, 1)
                     targets = targets.squeeze(-1)
 
                 # -------- Train Distance Predictor Model (predicting d+ and d-) --------
@@ -255,9 +280,7 @@ def train(base_model= 'densenet201',
 
                 # Backward pass for the combined loss
                 dist_loss.backward()
-                # for name, param in dist_model.named_parameters():
-                #     if param.grad is not None:
-                #         print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+                print_grad_norms(dist_model=dist_model)
                 dist_optimizer.step()
                 
 
@@ -287,7 +310,7 @@ def train(base_model= 'densenet201',
                     data, mu,  targets = data.to(device), mu.to(device), targets.to(device)
 
                     if dataset =='boneage':
-                        data = data.repeat(1, 3, 1, 1)
+                        # data = data.repeat(1, 3, 1, 1)
                         targets = targets.squeeze(-1)
 
                     targets_valid.append(targets.detach().cpu())

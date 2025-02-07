@@ -14,7 +14,12 @@ def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, los
         lambda_st = f"_lambda_{lambda_param}"
         checkpoint = torch.load(f'{models_dir}/{model_name}_lumbar_L{level}_snapshot_dist_{base_model}{lambda_st}_new.pth.tar', map_location=device)
     else:
-        model = BreastPathQModel(model_name, out_channels=1).to(device) 
+        if loss == "gaussian":
+            model = BreastPathQModel(model_name, out_channels=1).to(device) 
+        elif loss =="mse":
+            model = BreastPathQModelOneOutput(model_name, out_channels=1).to(device) 
+        else:
+            assert False 
         checkpoint = torch.load(f'{models_dir}/{model_name}_{loss}_lumbar_L{level}_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     model.eval()
@@ -31,7 +36,9 @@ def get_model_boneage(model_name, base_model, device, lambda_param =5, loss = 'g
         else:
             model = DistancePredictor(model_name, in_channels=1).to(device)
         lambda_st = f"_lambda_{lambda_param}"
-        checkpoint = torch.load(f'{models_dir}/{model_name}_boneage_snapshot_dist_{base_model}{lambda_st}_scale_factor1_new.pth.tar', map_location=device)
+        if loss =="mse":
+            models_dir = f"{models_dir}_mse"
+        checkpoint = torch.load(f'{models_dir}/{model_name}_boneage_snapshot_dist_{base_model}{lambda_st}_new.pth.tar', map_location=device)
     else:
         if loss == "gaussian":
             model = BreastPathQModel(model_name, in_channels = 1, out_channels=1).to(device) 

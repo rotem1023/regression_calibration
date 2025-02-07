@@ -41,6 +41,30 @@ def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,l
 torch.backends.cudnn.benchmark = True
 
 
+
+def print_grad_norms(dist_model):
+    # Get all the named parameters of the model
+    named_params = list(dist_model.named_parameters())
+    
+    # First 10 layers
+    first_10_layers = named_params[:5]
+    
+    # Last 10 layers
+    last_10_layers = named_params[-5:]
+    
+    # Print the gradient norm for the first 10 layers
+    print("First 5 Layers:")
+    for name, param in first_10_layers:
+        if param.grad is not None:
+            print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+    
+    # Print the gradient norm for the last 10 layers
+    print("Last 5 Layers:")
+    for name, param in last_10_layers:
+        if param.grad is not None:
+            print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+
+
 def aggregate_results(base_dataset, model, device):
     """
     Computes `mu` for all samples in the base dataset and aggregates results.
@@ -60,7 +84,7 @@ def aggregate_results(base_dataset, model, device):
 
     data_list, mu_list, target_list = [], [], []
     with torch.no_grad():
-        for data, target in tqdm(base_dataset, desc="Aggregating results"):
+        for batch_idx, (data, target) in enumerate(tqdm(base_dataset, desc="Aggregating results")):
             # Move data to the appropriate device
             data = data.to(device)  # Add batch dimension
             if data.shape[0] != 32:
@@ -74,6 +98,7 @@ def aggregate_results(base_dataset, model, device):
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
             target_list.append(target.cpu())
+
 
         
 
@@ -124,9 +149,9 @@ class CustomMSELoss(nn.Module):
                
         return total_loss
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'lumbar',
+          dataset = 'boneage',
          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.001,
@@ -136,7 +161,7 @@ def train(base_model= 'efficientnetb4',
           lr_patience=20,
           weight_decay=1e-8,
           lambda_param=1.0,
-          gpu=3,
+          gpu=1,
           level=2):
     print("Current PID:", os.getpid())
 
@@ -189,16 +214,23 @@ def train(base_model= 'efficientnetb4',
 
         train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
+        model = load_trained_models.get_model_lumbar(base_model, None, device)
+        dist_model = DistancePredictorOneOutput(dist_model_name).to(device)
+    elif dataset=='boneage':
+        resize_to = (256, 256)
+        data_set_train = BoneAgeDataset(group='train', augment=augment, resize_to=resize_to)
+        data_set_valid = BoneAgeDataset(augment=False, resize_to=resize_to,group='valid')
+        
+        model = load_trained_models.get_model_boneage(base_model, None, device)
+        dist_model = DistancePredictorOneOutput(dist_model_name, in_channels =1).to(device)
+    
     else:
         assert False
 
-    model = load_trained_models.get_model_lumbar(base_model, level, None, device)
-    dist_model = DistancePredictorOneOutput(dist_model_name).to(device)
+
     dist_optimizer = optim.Adam(dist_model.parameters(), lr=1e-3)
     loss_dist = CustomMSELoss(lambda_param=lambda_param)
 
-    if not pretrained:
-        kaiming_normal_init(model)
 
 
 
@@ -209,6 +241,9 @@ def train(base_model= 'efficientnetb4',
     batch_counter_valid = 0
 
     
+    train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=False)
+    
     data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device)
     data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device)
     aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, target_tensor_train)
@@ -216,7 +251,6 @@ def train(base_model= 'efficientnetb4',
     
     train_loader = DataLoader(aggregated_dataset_train, batch_size=batch_size, shuffle=True)
     valid_loader = DataLoader(aggregated_dataset_valid, batch_size=batch_size, shuffle=True)
-
     
     
     try:
@@ -229,6 +263,8 @@ def train(base_model= 'efficientnetb4',
 
             for batch_idx, (data, mu,targets) in enumerate(tqdm(train_loader)):
                 data, mu, targets = data.to(device), mu.to(device), targets.to(device)
+                if dataset =='boneage':
+                    targets = targets.squeeze(-1)
 
                 # -------- Train Distance Predictor Model (predicting d+ and d-) --------
                 dist_optimizer.zero_grad()
@@ -236,17 +272,18 @@ def train(base_model= 'efficientnetb4',
                 # Forward pass for distance model
                 predicted_distances = dist_model(data)
                 true_distance = torch.abs(targets-mu)
+                true_d_plus = torch.clamp(targets - mu, min=0) # True d+
+                true_d_minus = torch.clamp(mu - targets, min=0) # True d-
+                true_cur_distance = true_d_plus
 
                 # Compute loss for distance model
-                dist_loss = loss_dist(predicted_distances.float(), true_distance.float())
+                dist_loss = loss_dist(true_cur_distance.float(), predicted_distances.float())
                 # dist_loss.backward(retain_graph=True)
                 # dist_optimizer.step()
 
                 # Backward pass for the combined loss
                 dist_loss.backward()
-                # for name, param in dist_model.named_parameters():
-                #     if param.grad is not None:
-                #         print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
+                print_grad_norms(dist_model=dist_model)
                 dist_optimizer.step()
                 
 
@@ -274,23 +311,26 @@ def train(base_model= 'efficientnetb4',
             with torch.no_grad():
                 for batch_idx, (data, mu, targets) in enumerate(tqdm(valid_loader)):
                     data, mu,  targets = data.to(device), mu.to(device), targets.to(device)
-
+                    if dataset =='boneage':
+                        targets = targets.squeeze(-1)
 
                     targets_valid.append(targets.detach().cpu())
 
 
                     # -------- Evaluate Distance Model --------
                     predicted_distances = dist_model(data) # Predict d+ and d-
-                    true_d_plus = torch.clamp(targets - mu, min=0)  # True d+
-                    true_d_minus = torch.clamp(mu - targets, min=0)  # True d-
-                    true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
+                    true_distance = torch.abs(targets-mu)
+                    true_d_plus = torch.clamp(targets - mu, min=0) # True d+
+                    true_d_minus = torch.clamp(mu - targets, min=0) # True d-
+                    true_cur_distance = true_d_plus
 
-                    dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
+                    dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_cur_distance.float())
                     dist_valid_loss.append(dist_loss.item())
 
                     writer.add_scalar('dist_valid/loss', dist_loss.item(), batch_counter_valid)
 
                     batch_counter_valid += 1
+                    print(f"Predicted distances: {predicted_distances[:1].item()}, true distance: {true_cur_distance[:1].item()}" )
                     
 
             # Compute metrics for the epoch

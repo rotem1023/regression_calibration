@@ -180,7 +180,7 @@ class BreastPathQModelOneOutput(nn.Module):
         self._fc2 = nn.Linear(fc_in_features // 2, out_channels)
         self._dropout = nn.Dropout(p=dropout_rate)
 
-    def forward(self, input, dropout):
+    def forward(self, input):
         x = self._base_model(input)
         x = torch.relu(x)  # Ensure positive activation
         x = self._dropout(x)
@@ -234,7 +234,7 @@ class DistancePredictor(nn.Module):
 
     
 class DistancePredictorOneOutput(nn.Module):
-    def __init__(self, base_model='resnet50'):
+    def __init__(self, base_model='resnet50', in_channels = 3):
         super(DistancePredictorOneOutput, self).__init__()
         if base_model == 'resnet50':
             self.base_model = resnet50(pretrained=True)
@@ -250,6 +250,18 @@ class DistancePredictorOneOutput(nn.Module):
         # nn.init.xavier_uniform_(self.base_model.fc.weight)
         nn. init.kaiming_normal_(self.base_model.fc.weight, nonlinearity='relu')
         nn.init.constant_(self.base_model.fc.bias, 0.1)
+        
+                # Modify the first convolutional layer if necessary
+        if in_channels != 3:
+            old_conv = self.base_model.conv1
+            self.base_model.conv1 = nn.Conv2d(
+                in_channels=in_channels, 
+                out_channels=old_conv.out_channels, 
+                kernel_size=old_conv.kernel_size, 
+                stride=old_conv.stride, 
+                padding=old_conv.padding, 
+                bias=old_conv.bias is not None
+            )
 
         # Add a new layer to predict d+ and d-
         # self.fc = nn.Linear(1, 2)  # Predict two distances
