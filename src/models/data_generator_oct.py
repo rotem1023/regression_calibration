@@ -229,4 +229,4 @@ class OCTDataset(Dataset):
 # data_set_train = OCTDataset(group='train')
 # train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
 # for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
-#                 print(targets)
+#                 # print(targets)

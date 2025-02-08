@@ -60,6 +60,7 @@ def aggregate_results(base_dataset, model, device):
 
     data_list, mu_list, target_list = [], [], []
     with torch.no_grad():
+        second = False
         for data, target in tqdm(base_dataset, desc="Aggregating results"):
             # Move data to the appropriate device
             data = data.to(device)  # Add batch dimension
@@ -67,7 +68,7 @@ def aggregate_results(base_dataset, model, device):
                 print("data.shape[0] != 32")
                 continue
             # Compute `mu`
-            mu = model(data)  # Assuming model returns (mu, logvar, _)
+            mu = model(data)
 
 
             # Store results
@@ -127,7 +128,7 @@ class CustomMSELoss(nn.Module):
 
 def train(base_model= 'densenet201',
           likelihood= 'mse',
-          dataset = 'lumbar',
+          dataset = 'boneage',
          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.001,
@@ -138,7 +139,7 @@ def train(base_model= 'densenet201',
           weight_decay=1e-8,
           lambda_param=1.0,
           gpu=0,
-          level=3):
+          level=5):
     print("Current PID:", os.getpid())
 
 
@@ -216,10 +217,11 @@ def train(base_model= 'densenet201',
     aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, target_tensor_valid)
     
     train_loader = DataLoader(aggregated_dataset_train, batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(aggregated_dataset_valid, batch_size=batch_size, shuffle=True)
+    valid_loader = DataLoader(aggregated_dataset_valid, batch_size=batch_size, shuffle=False)
 
-    
-    
+    print(f"mae train: {torch.mean(torch.abs(target_tensor_train.squeeze(-1) - mu_tensor_train))}, mse train: {torch.mean(torch.square(target_tensor_train.squeeze(-1) - mu_tensor_train))}")
+    print(f"mae validtion: {torch.mean(torch.abs(target_tensor_valid.squeeze(-1) - mu_tensor_valid))}, mse validation: {torch.mean(torch.square(target_tensor_valid.squeeze(-1) - mu_tensor_valid))}")
+
     try:
         for e in range(epochs):
             dist_model.train()

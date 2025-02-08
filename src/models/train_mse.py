@@ -26,16 +26,16 @@ torch.backends.cudnn.benchmark = True
 
 
 def train(base_model= 'densenet201',
-          dataset = 'lumbar',
+          dataset = 'boneage',
           batch_size=32,
           init_lr=0.001,
-          epochs=50,
+          epochs=200,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
-          level=4):
+          gpu=2,
+          level=5):
     print("Current PID:", os.getpid())
 
     likelihood = 'mse'
@@ -117,7 +117,10 @@ def train(base_model= 'densenet201',
     model = BreastPathQModelOneOutput(base_model, in_channels=in_channels, out_channels=out_channels,
                              pretrained=pretrained).to(device)
     
-    
+    ## TODO: remove
+    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new_mse/tmp/densenet201_mse_boneage_snapshot.pth.tar', map_location=device)
+    model.load_state_dict(checkpoint['state_dict'])
+    print(f"init epoch: {checkpoint['epoch']}")
 
 
     loss_criterion = torch.nn.functional.mse_loss
