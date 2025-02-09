@@ -163,7 +163,7 @@ def train(base_model= 'efficientnetb4',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          gpu=1,
+          gpu=3,
           level=5):
     print("Current PID:", os.getpid())
 
