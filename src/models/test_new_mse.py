@@ -24,6 +24,33 @@ import load_trained_models
 import numpy as np
 import torch
 
+
+def filter_arrays(true_array, predict_array):
+    indices = np.where(true_array >= 0)
+    filtered_predict_array = predict_array[indices]
+    filtered_true_array=  true_array[indices]
+    return filtered_true_array, filtered_predict_array
+    
+
+def get_q_from_array(c, alpha):
+    c_sorted, _ = torch.sort(c, dim=0)
+    q_index = math.ceil((len(c_sorted)) * (1 - alpha))
+    q = c_sorted[q_index].item()
+    return q
+
+def calc_opt_qs_new_method(target_calib, mu_calib, positive_dist, negative_dist, alpha):
+    true_negative_diststance = mu_calib - target_calib
+    true_positive_distance = target_calib - mu_calib
+    
+    filtered_true_negative_distance, filtered_negative_dist= filter_arrays(true_negative_diststance, negative_dist)
+    filtered_true_positive_distance, filtered_positive_distance = filter_arrays(true_positive_distance, positive_dist)
+    
+    c_min = filtered_true_negative_distance - filtered_negative_dist
+    c_max = filtered_true_positive_distance - filtered_positive_distance
+    q_min = get_q_from_array(c_min, alpha)
+    q_max = get_q_from_array(c_max, alpha)
+    return q_min, q_max
+
 def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, alpha, addtvie):
     if addtvie:
         c_min = mu_calib - negative_dist - target_calib
@@ -36,6 +63,7 @@ def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, 
     c_sorted, _ = torch.sort(c, dim=0)
     q_index = math.ceil((len(c_sorted)) * (1 - alpha))
     q = c_sorted[q_index].item()
+    q_min, q_max = calc_opt_qs_new_method(target_calib, mu_calib, poistive_dist, negative_dist, alpha)
     return q
 
 def calc_coverage_add(mu, target, poistive_dist, negative_dist, q):
@@ -109,10 +137,9 @@ def load_arrays(results_dir, dataset, base_model, dist_model, loss, group, level
     saved_dir = get_saved_dir(results_dir=results_dir, dataset=dataset, base_model=base_model, dist_model=dist_model, loss = loss, group = group, level=level, lambda_param = lambda_param, scale_factor = scale_factor)
     y = np.load(f'{saved_dir}/y.npy')
     mu = np.load(f'{saved_dir}/mu.npy')
-    logvar = np.load(f'{saved_dir}/logvar.npy')  
     pos_dist = np.load(f'{saved_dir}/positive_distance.npy') 
     neg_dist = np.load(f'{saved_dir}/negative_distance.npy')
-    return torch.from_numpy(y), torch.from_numpy(mu), torch.from_numpy(logvar), torch.from_numpy(pos_dist), torch.from_numpy(neg_dist)
+    return torch.from_numpy(y), torch.from_numpy(mu), torch.from_numpy(pos_dist), torch.from_numpy(neg_dist)
     
 
 
@@ -202,7 +229,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:1")
-    dataset = 'lumbar'
+    dataset = 'boneage'
     loss = 'mse'
     one_output = False
     load_results = False
@@ -210,7 +237,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     lambda_param = 1
     iters = 20
     level = 5
-    alpha = 0.05
+    alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
@@ -249,10 +276,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_calib_original, mu=y_p_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original)
         # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_test_original, mu=y_p_test_original, positive_distance=positive_dist_test_original, negative_distance= negative_dist_test_original)
     else:
-        targets_calib_original, y_p_calib_original,  logvars_calib_original, positive_dist_calib_original, negative_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor)
-        vars_calib_original = logvars_calib_original.exp()
-        targets_test_original, y_p_test_original, logvars_test_original, positive_dist_test_original, negative_dist_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
-        vars_test_original = logvars_test_original.exp()
+        targets_calib_original, y_p_calib_original, positive_dist_calib_original, negative_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor)
+        targets_test_original, y_p_test_original, positive_dist_test_original, negative_dist_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
+
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
@@ -331,7 +357,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         true_d_minus = torch.clamp(mu_calib - targets_calib, min=0) # True d-
         q_add = calc_opt_q_new_method(target_calib, mu_calib, positive_dist_calib, negative_dist_calib, alpha , True)
             
-        # cal avg new len and cov valid set
+        # cal avg new len and cov valid set 
         length_add_calib, coverage_add_calib = calc_stats_new_method(target_calib, mu_calib, positive_dist_calib, negative_dist_calib, q_add, div=False)    
         print(f'q_add: {q_add}, avg_len_single_new_add_val: {length_add_calib}, avg_cov_after_single_new_add_val: {coverage_add_calib}')
             

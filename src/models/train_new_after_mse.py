@@ -3,6 +3,7 @@
 # Leibniz Universität Hannover, Germany
 # 2019
 
+from torchvision import transforms
 
 from datetime import datetime
 import os
@@ -41,7 +42,7 @@ def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,l
 torch.backends.cudnn.benchmark = True
 
 
-def aggregate_results(base_dataset, model, device):
+def aggregate_results(base_dataset, model, device, batch_size):
     """
     Computes `mu` for all samples in the base dataset and aggregates results.
 
@@ -64,8 +65,8 @@ def aggregate_results(base_dataset, model, device):
         for data, target in tqdm(base_dataset, desc="Aggregating results"):
             # Move data to the appropriate device
             data = data.to(device)  # Add batch dimension
-            if data.shape[0] != 32:
-                print("data.shape[0] != 32")
+            if data.shape[0] != batch_size:
+                print(f"data.shape[0] != {batch_size}")
                 continue
             # Compute `mu`
             mu = model(data)
@@ -75,6 +76,7 @@ def aggregate_results(base_dataset, model, device):
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
             target_list.append(target.cpu())
+
 
 
         
@@ -87,7 +89,7 @@ def aggregate_results(base_dataset, model, device):
     return data_tensor, mu_tensor, target_tensor
 
 class AggregatedDataset(Dataset):
-    def __init__(self, data_tensor, mu_tensor, target_tensor):
+    def __init__(self, data_tensor, mu_tensor, target_tensor, augment = False):
         """
         Args:
             data_tensor (torch.Tensor): Tensor containing data samples.
@@ -97,12 +99,30 @@ class AggregatedDataset(Dataset):
         self.data_tensor = data_tensor
         self.mu_tensor = mu_tensor
         self.target_tensor = target_tensor
+        self._augment = augment
 
     def __len__(self):
         return self.data_tensor.size(0)
 
     def __getitem__(self, idx):
-        return self.data_tensor[idx], self.mu_tensor[idx], self.target_tensor[idx]
+        data_tensor = self.data_tensor[idx]
+        if self._augment:
+            to_pil = transforms.ToPILImage()
+            pil_image = to_pil(data_tensor)
+            w, h = pil_image.size
+            size = (h, w)
+            trans_augment = []
+            trans_augment.append(transforms.RandomHorizontalFlip())
+            trans_augment.append(transforms.CenterCrop(size))
+            trans_augment.append(transforms.RandomCrop(size, padding=8))
+            trans_augment.append(transforms.ToTensor())
+            mean = [0.14344494]
+            std = [0.18635063]
+            trans_augment.append(transforms.Normalize(mean, std))
+            trans = transforms.Compose(trans_augment)
+            data_tensor = trans(pil_image)
+        
+        return data_tensor, self.mu_tensor[idx], self.target_tensor[idx]
 
 
 
@@ -132,13 +152,13 @@ def train(base_model= 'densenet201',
          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.001,
-          epochs=50,
+          epochs=200,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
           lambda_param=1.0,
-          gpu=0,
+          gpu=2,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -211,9 +231,9 @@ def train(base_model= 'densenet201',
     batch_counter_valid = 0
 
     
-    data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device)
-    data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device)
-    aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, target_tensor_train)
+    data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, batch_size)
+    data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device, batch_size)
+    aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, target_tensor_train, augment=True)
     aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, target_tensor_valid)
     
     train_loader = DataLoader(aggregated_dataset_train, batch_size=batch_size, shuffle=True)

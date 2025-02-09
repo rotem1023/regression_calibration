@@ -30,7 +30,7 @@ def train(base_model= 'efficientnetb4',
           dataset = 'boneage',
           batch_size=32,
           init_lr=0.001,
-          epochs=500,
+          epochs=400,
           augment=True,
           valid_size=300,
           lr_patience=20,
@@ -180,8 +180,8 @@ def train(base_model= 'efficientnetb4',
     
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
 
-    # checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot.pth.tar', map_location=device)
-    # model.load_state_dict(checkpoint['state_dict'])
+    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new_mse/tmp/efficientnetb4_gaussian_boneage_snapshot_my_version.pth.tar', map_location=device)
+    model.load_state_dict(checkpoint['state_dict'])
     # epochs_finsihed = checkpoint['epoch']
     # epochs = epochs - epochs_finsihed
     # if epochs < 2:

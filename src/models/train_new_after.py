@@ -98,8 +98,7 @@ def aggregate_results(base_dataset, model, device):
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
             target_list.append(target.cpu())
-            if (batch_idx > 1):
-                break
+
 
 
         
@@ -151,13 +150,13 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'boneage',
           dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.005,
-          epochs=200,
+          epochs=50,
           augment=True,
           valid_size=300,
           lr_patience=20,

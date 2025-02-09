@@ -231,11 +231,11 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     dataset = 'boneage'
     loss = 'gaussian'
     one_output = False
-    load_results = False
+    load_results = True
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 1
+    level = 5
     alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
@@ -250,8 +250,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         if dataset == 'lumbar':
             model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss)
             dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss)
-            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
-            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False)
+            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False)
         elif dataset == 'boneage':
             resize_to = (256, 256)
             data_set_valid_original = BoneAgeDataset(group='valid', augment=False, resize_to=resize_to)
@@ -369,7 +369,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         before_cov_test = calc_coverage_add(mu_test, target_test, positive_dist_test, negative_dist_test, 0)
         print(f'before_cov_val: {before_cov_val}, before_cov_test: {before_cov_test}')
             
-            
+        true_d_plus = torch.clamp(target_calib - mu_calib, min=0) # True d+
+        true_d_minus = torch.clamp(mu_calib - targets_calib, min=0) # True d-
         q_add = calc_opt_q_new_method(target_calib, mu_calib, positive_dist_calib, negative_dist_calib, alpha , True)
             
         # cal avg new len and cov valid set

@@ -40,7 +40,8 @@ def get_model_boneage(model_name, base_model, device, lambda_param =5, loss = 'g
         lambda_st = f"_lambda_{lambda_param}"
         if loss =="mse":
             models_dir = f"{models_dir}_mse"
-        checkpoint = torch.load(f'{models_dir}/{model_name}_boneage_snapshot_dist_{base_model}{lambda_st}_new.pth.tar', map_location=device)
+        checkpoint = torch.load(f'{models_dir}/{model_name}_boneage_snapshot_dist_{base_model}{lambda_st}_scale_factor1_new.pth.tar', map_location=device)
+        # checkpoint = torch.load(f'{models_dir}/{model_name}_boneage_snapshot_dist_{base_model}{lambda_st}_scale_factor1_new_my_version.pth.tar', map_location=device)
     else:
         if loss == "gaussian":
             model = BreastPathQModel(model_name, in_channels = 1, out_channels=1).to(device) 
@@ -48,7 +49,9 @@ def get_model_boneage(model_name, base_model, device, lambda_param =5, loss = 'g
             model = BreastPathQModelOneOutput(model_name, in_channels = 1, out_channels=1).to(device) 
         else:
             assert False
+        # checkpoint = torch.load(f'{models_dir}/{model_name}_{loss}_boneage_snapshot_my_version.pth.tar', map_location=device)
         checkpoint = torch.load(f'{models_dir}/{model_name}_{loss}_boneage_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     model.eval()
     return model
+'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/densenet201_gaussian_boneage_best_my_version.pth.tar'
