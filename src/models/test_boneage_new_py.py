@@ -7,13 +7,10 @@ torch.manual_seed(1)
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import datasets, transforms, models
-from torch.utils.data import SubsetRandomSampler, ConcatDataset, Subset
 from tqdm import tqdm
 import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_boneage import BoneAgeDataset
 from models import BreastPathQModel, DistancePredictor
 from glob import glob
@@ -132,10 +129,7 @@ def get_arrays(data_loader):
             data, target = data, target
             data_s.append(data)
             targets_s.append(target.detach())  
-
-               
-            
-                    
+                             
     return torch.cat(data_s).cpu(), torch.cat(targets_s).cpu()
 
 def shuffle_arrays(calib_arrays, test_arrays):
@@ -199,9 +193,9 @@ def main():
         
         
 def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False, partial=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:1")
     
     alpha = 0.05
     
@@ -222,18 +216,6 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
     batch_size = 16
     resize_to = (256, 256)
 
-    # data_dir = '/home/dsi/frenkel2/data/rsna-bone-age/'
-    # data_set = BoneAgeDataset(data_dir=data_dir, augment=False, resize_to=resize_to)
-    # assert len(data_set) > 0
-
-    # calib_indices = torch.load('./data_indices/boneage_valid_indices.pth')
-    # test_indices = torch.load('./data_indices/boneage_test_indices.pth')
-
-    # print(calib_indices.shape)
-    # print(test_indices.shape)
-    
-    # calib_original_indices = calib_indices.clone()
-    # test_original_indices = test_indices.clone()
     
     q_all = []
     avg_len_all = []
@@ -269,25 +251,6 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
             calib_loader = torch.utils.data.DataLoader(calib_dataset, batch_size=batch_size, shuffle=True)
             test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-            # val_original_shape = calib_original_indices.shape[0]
-            # test_original_shape = test_original_indices.shape[0]
-
-            # all_indices = torch.cat((calib_original_indices, test_original_indices))
-            # idx = torch.randperm(all_indices.nelement())
-            # all_indices = all_indices.view(-1)[idx].view(all_indices.size())
-
-            # calib_indices, test_indices = torch.split(all_indices, [val_original_shape, test_original_shape])
-
-            # if partial:
-            #     calib_indices = calib_indices[:100]
-                                              
-            # print(calib_indices.shape)
-            # print(test_indices.shape)
-
-        # calib_loader = torch.utils.data.DataLoader(data_set, batch_size=batch_size,
-        #                                         sampler=SubsetRandomSampler(calib_indices))
-        # test_loader = torch.utils.data.DataLoader(data_set, batch_size=batch_size,
-        #                                         sampler=SubsetRandomSampler(test_indices))
         
         model.eval()
         y_p_calib = []
@@ -348,15 +311,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                 else:
                     uncert_calib = (uncert_calib_aleatoric + uncert_calib_epistemic).sqrt().clamp(0, 1)  # total
                 
-            # if save_params:
-            #     save_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-            #     with open(save_path + f'{base_model}_gaussian_boneage_calib_params_partial.pickle', 'wb') as handle:
-            #         pickle.dump({'mu': mu_calib,
-            #                     'target': target_calib,
-            #                     'err': err_calib, 
-            #                     'uncert': uncert_calib,
-            #                     }
-            #                     , handle, protocol=pickle.HIGHEST_PROTOCOL)
+
         
         if load_test:
             load_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
@@ -545,7 +500,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         print(f'avg_len method mean: {statistics.mean(avg_len_all_new_method)}, avg_len GC std: {statistics.stdev(avg_len_all_new_method)}')
         print(f'avg_cov method mean: {statistics.mean(avg_cov_all_new_method)}, avg_cov GC std: {statistics.stdev(avg_cov_all_new_method)}')
 
-
+    print(f"boneage, {base_model}, {alpha}")
 
 if __name__ == '__main__':
     main()

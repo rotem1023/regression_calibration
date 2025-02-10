@@ -256,7 +256,6 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             resize_to = (256, 256)
             data_set_valid_original = BoneAgeDataset(group='valid', augment=False, resize_to=resize_to)
             data_set_test_original = BoneAgeDataset(group='test', augment=False, resize_to=resize_to)
-            
             model = load_trained_models.get_model_boneage(base_model, None, device, loss=loss)
             dist_model = load_trained_models.get_model_boneage(base_model_dist, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss)
         else:

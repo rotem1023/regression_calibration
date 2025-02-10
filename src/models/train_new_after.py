@@ -65,7 +65,7 @@ def print_grad_norms(dist_model):
         if param.grad is not None:
             print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
 
-def aggregate_results(base_dataset, model, device):
+def aggregate_results(base_dataset, model, device, dataset):
     """
     Computes `mu` for all samples in the base dataset and aggregates results.
 
@@ -91,14 +91,21 @@ def aggregate_results(base_dataset, model, device):
                 print("data.shape[0] != 32")
                 continue
             # Compute `mu`
-            mu, _, _ = model(data)  # Assuming model returns (mu, logvar, _)
-
+            
+            # my version
+            # mu, _, _ = model(data)  # Assuming model returns (mu, logvar, _)
+            # lior version
+            mu, _, _ = model(data, dropout=True, mc_dropout=True, test=True)
+            mu = mu.clamp(0, 1).permute(1,0,2)
+            mu = mu.mean(dim=1)
+            if dataset =='oct':
+                mu = torch.mean(mu, dim = 1, keepdim=True)
+                target = torch.mean(target, dim=1, keepdim=True)
 
             # Store results
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
             target_list.append(target.cpu())
-
 
 
         
@@ -107,6 +114,8 @@ def aggregate_results(base_dataset, model, device):
     data_tensor = torch.cat(data_list, dim=0)
     mu_tensor = torch.cat(mu_list, dim=0).squeeze(0)
     target_tensor = torch.cat(target_list, dim=0).unsqueeze(-1)
+    if dataset =='oct':
+        target_tensor = target_tensor.squeeze(-1)
 
     return data_tensor, mu_tensor, target_tensor
 
@@ -150,9 +159,9 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'boneage',
+          dataset = 'oct',
           dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.005,
@@ -163,7 +172,7 @@ def train(base_model= 'efficientnetb4',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          gpu=3,
+          gpu=2,
           level=5):
     print("Current PID:", os.getpid())
 
@@ -209,7 +218,11 @@ def train(base_model= 'efficientnetb4',
         
         model = load_trained_models.get_model_boneage(base_model, None, device)
         dist_model = DistancePredictor(dist_model_name, in_channels = 1).to(device)
-        
+    elif dataset == 'oct':
+        data_set_train = OCTDataset(group='train')
+        data_set_valid = OCTDataset(group='valid') 
+        model = load_trained_models.get_model_oct(base_model, None, device)
+        dist_model = DistancePredictor(dist_model_name, in_channels = 3).to(device)  
     else:
         assert False
 
@@ -238,8 +251,8 @@ def train(base_model= 'efficientnetb4',
     batch_counter_valid = 0
 
     
-    data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device)
-    data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device)
+    data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, dataset=dataset)
+    data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset=dataset)
     aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, target_tensor_train)
     aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, target_tensor_valid)
     
@@ -279,7 +292,7 @@ def train(base_model= 'efficientnetb4',
 
                 # Backward pass for the combined loss
                 dist_loss.backward()
-                print_grad_norms(dist_model=dist_model)
+                # print_grad_norms(dist_model=dist_model)
                 dist_optimizer.step()
                 
 
@@ -346,8 +359,8 @@ def train(base_model= 'efficientnetb4',
             valid_losses.append(epoch_valid_loss)
             dist_losses.append(epoch_dist_valid_loss)  # Store distance model's validation loss
 
-            if valid_losses[-1] <= np.min(valid_losses):
-                save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, scale_factor=scale_factor, is_best=True)
+            # if valid_losses[-1] <= np.min(valid_losses):
+            #     save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, scale_factor=scale_factor, is_best=True)
 
 
             save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)

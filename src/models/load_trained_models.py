@@ -54,4 +54,21 @@ def get_model_boneage(model_name, base_model, device, lambda_param =5, loss = 'g
     model.load_state_dict(checkpoint['state_dict'])
     model.eval()
     return model
-'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/densenet201_gaussian_boneage_best_my_version.pth.tar'
+
+
+def get_model_oct(model_name, base_model, device, loss = "gaussian"):
+    models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
+    if base_model != None:  # distance model
+        pass
+    else:
+        if loss == "gaussian":
+            model = BreastPathQModel(model_name, in_channels = 3, out_channels=6).to(device) 
+        elif loss =="mse":
+            model = BreastPathQModelOneOutput(model_name, in_channels = 3, out_channels=1).to(device) 
+        else:
+            assert False
+        # checkpoint = torch.load(f'{models_dir}/{model_name}_{loss}_boneage_snapshot_my_version.pth.tar', map_location=device)
+        checkpoint = torch.load(f'{models_dir}/{model_name}_{loss}_oct_best.pth.tar', map_location=device)
+    model.load_state_dict(checkpoint['state_dict'])
+    model.eval()
+    return model
