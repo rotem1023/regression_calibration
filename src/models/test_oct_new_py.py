@@ -7,19 +7,18 @@ torch.manual_seed(1)
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torchvision import datasets, transforms, models
+from torch.utils.data import SubsetRandomSampler, ConcatDataset, Subset
 from tqdm import tqdm
 import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
-from data_generator_boneage import BoneAgeDataset
+from torch.utils.data.sampler import SubsetRandomSampler
+from data_generator_oct import OCTDataset
 from models import BreastPathQModel, DistancePredictor
 from glob import glob
 import statistics
 import math
-import pandas as pd
-from skimage import io
-import pickle
-
 
 
 def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, alpha, addtvie):
@@ -53,6 +52,52 @@ def  calc_coverage(lower, upper, target):
 
 def calc_length(lower, upper):
     return torch.mean(abs(upper - lower)).item()
+
+def get_arrays(data_loader):
+    data_s = []
+    targets_s = []
+    with torch.no_grad():
+        for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
+            data, target = data, target
+            data_s.append(data)
+            targets_s.append(target.detach())  
+
+            
+                             
+    return torch.cat(data_s).cpu(), torch.cat(targets_s).cpu()
+
+
+def shuffle_arrays(calib_arrays, test_arrays):
+    """
+    Shuffles calibration and test arrays together, maintaining correspondence across arrays.
+
+    Args:
+        calib_arrays (list of tensors): List of calibration arrays to shuffle.
+        test_arrays (list of tensors): List of test arrays to shuffle.
+        seed (int, optional): Seed for reproducibility. Defaults to None.
+
+    Returns:
+        tuple: Shuffled calibration arrays, shuffled test arrays.
+    """
+    # if seed is not None:
+    #     np.random.seed(seed)
+
+    # Combine calib and test arrays
+    combined_arrays = [torch.cat([calib, test], dim=0) for calib, test in zip(calib_arrays, test_arrays)]
+    
+    # Generate shuffle indices
+    total_length = combined_arrays[0].shape[0]
+    shuffle_indices = np.random.permutation(total_length)
+
+    # Apply shuffle indices
+    shuffled_arrays = [arr[shuffle_indices] for arr in combined_arrays]
+
+    # Split back into calib and test arrays
+    split_index = len(calib_arrays[0])
+    calib_shuffled = [arr[:split_index] for arr in shuffled_arrays]
+    test_shuffled = [arr[split_index:] for arr in shuffled_arrays]
+
+    return calib_shuffled, test_shuffled
 # CP
 
 def calc_optimal_q(target_calib, mu_calib, uncert_calib, err_calib=None, alpha=0.1, gc=False, single=False):
@@ -121,49 +166,6 @@ def avg_cov(mu, uncert, target):
             
     return total_cov / len(mu)
 
-def get_arrays(data_loader):
-    data_s = []
-    targets_s = []
-    with torch.no_grad():
-        for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
-            data, target = data, target
-            data_s.append(data)
-            targets_s.append(target.detach())  
-                             
-    return torch.cat(data_s).cpu(), torch.cat(targets_s).cpu()
-
-def shuffle_arrays(calib_arrays, test_arrays):
-    """
-    Shuffles calibration and test arrays together, maintaining correspondence across arrays.
-
-    Args:
-        calib_arrays (list of tensors): List of calibration arrays to shuffle.
-        test_arrays (list of tensors): List of test arrays to shuffle.
-        seed (int, optional): Seed for reproducibility. Defaults to None.
-
-    Returns:
-        tuple: Shuffled calibration arrays, shuffled test arrays.
-    """
-    # if seed is not None:
-    #     np.random.seed(seed)
-
-    # Combine calib and test arrays
-    combined_arrays = [torch.cat([calib, test], dim=0) for calib, test in zip(calib_arrays, test_arrays)]
-    
-    # Generate shuffle indices
-    total_length = combined_arrays[0].shape[0]
-    shuffle_indices = np.random.permutation(total_length)
-
-    # Apply shuffle indices
-    shuffled_arrays = [arr[shuffle_indices] for arr in combined_arrays]
-
-    # Split back into calib and test arrays
-    split_index = len(calib_arrays[0])
-    calib_shuffled = [arr[:split_index] for arr in shuffled_arrays]
-    test_shuffled = [arr[split_index:] for arr in shuffled_arrays]
-
-    return calib_shuffled, test_shuffled
-    
 def scale_bins_single_conformal(uncert_test, q):
     
     # Calculate Avg Length before temperature scaling
@@ -179,37 +181,34 @@ def scale_bins_single_conformal(uncert_test, q):
 
 def main():
     eval_single_img = False
-    data_dir = "C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age"
+    data_dir = "C:\lior\studies\master\projects\calibration/regression calibration/3doct-pose-dataset/data/"
     
-
     mix_indices = True
     save_params = True
     load_params = False
     save_test = True
     load_test = False
     calc_mean = True
-    partial = True
-    eval_test_set(data_dir, save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test, partial=partial)
-        
-        
-def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False, partial=False):
+    eval_test_set(save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)    
+    
+def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
     base_model = 'efficientnetb4'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     
-    alpha = 0.05
+    alpha = 0.1
     
-    model = BreastPathQModel(base_model, in_channels=1, out_channels=1).to(device)
+    model = BreastPathQModel(base_model, out_channels=6).to(device)
 
-    # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_boneage_499.pth.tar")[0]
-    checkpoint_path = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/{base_model}_gaussian_boneage_best.pth.tar"
+    # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_oct_315.pth.tar")[0] # efficientnet
+    checkpoint_path = f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/{base_model}_gaussian_oct_best.pth.tar"
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print("Loading previous weights at epoch " + str(checkpoint['epoch']) + " from\n" + checkpoint_path)
     
     dist_model_name = 'resnet50'
-    dist_model = DistancePredictor(dist_model_name, in_channels=1).to(device)
-    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_boneage_snapshot_dist_{base_model}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
+    dist_model = DistancePredictor(dist_model_name, in_channels=3).to(device)
+    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_oct_snapshot_dist_{base_model}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
     dist_model.load_state_dict(checkpoint['state_dict'])
     dist_model.eval()
     
@@ -227,30 +226,28 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
     avg_len_all_new_method = []
     avg_cov_all_new_method = []
     
-
-    data_set_valid_original = BoneAgeDataset(group='valid', augment=False, resize_to=resize_to)
-    data_set_test_original = BoneAgeDataset(group='test', augment=False, resize_to=resize_to)
+    
+    
+    data_set_valid_original = OCTDataset(group='valid')
+    data_set_test_original = OCTDataset(group='test')
     calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
     test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
     data_calib_original, target_calib_original = get_arrays(calib_loader)
     data_test_original, target_test_original = get_arrays(test_loader)
 
     for _ in range(20):
-        if mix_indices:
-
-            calib_arrays = [data_calib_original, target_calib_original]
-            test_arrays = [data_test_original, target_test_original]
+        calib_arrays = [data_calib_original, target_calib_original]
+        test_arrays = [data_test_original, target_test_original]
             
-            calib_shuffled, test_shuffled = shuffle_arrays(calib_arrays, test_arrays)
+        calib_shuffled, test_shuffled = shuffle_arrays(calib_arrays, test_arrays)
             
-            data_calib, target_calib = calib_shuffled
-            data_test, target_test = test_shuffled
-            calib_dataset = torch.utils.data.TensorDataset(data_calib, target_calib)
-            test_dataset = torch.utils.data.TensorDataset(data_test, target_test)
+        data_calib, target_calib = calib_shuffled
+        data_test, target_test = test_shuffled
+        calib_dataset = torch.utils.data.TensorDataset(data_calib, target_calib)
+        test_dataset = torch.utils.data.TensorDataset(data_test, target_test)
             
-            calib_loader = torch.utils.data.DataLoader(calib_dataset, batch_size=batch_size, shuffle=True)
-            test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
+        calib_loader = torch.utils.data.DataLoader(calib_dataset, batch_size=batch_size, shuffle=True)
+        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         
         model.eval()
         y_p_calib = []
@@ -259,132 +256,97 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         targets_calib = []
         distance_minus_calib = []
         distance_plus_calib = []
-        
-        if load_params:
-            load_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-            with open(load_path + f'{base_model}_gaussian_boneage_calib_params_partial.pickle', 'rb') as handle:
-                calib_dict = pickle.load(handle)
-                mu_calib = calib_dict['mu']
-                target_calib = calib_dict['target']
-                err_calib = calib_dict['err']
-                uncert_calib = calib_dict['uncert']
+
+        with torch.no_grad():
+            for batch_idx, (data, target) in enumerate(tqdm(calib_loader)):
+                data, target = data.to(device), target.to(device)
+
+                y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=True, test=True)
+
+                y_p_calib.append(y_p.detach())
+                vars_calib.append(var_bayesian.detach())
+                logvars_calib.append(logvar.detach())
+                targets_calib.append(target.detach())
                 
+                distances = dist_model(data).detach()
+                distance_plus_calib.append(distances[:,0])
+                distance_minus_calib.append(distances[:,1])
+        
+        
+        y_p_calib = torch.cat(y_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
+        mu_calib = y_p_calib.mean(dim=1)
+        var_calib = torch.cat(vars_calib, dim=0)
+        logvars_calib = torch.cat(logvars_calib, dim=1).permute(1,0,2)
+        logvar_calib = logvars_calib.mean(dim=1)
+        target_calib = torch.cat(targets_calib, dim=0)
+        distance_plus_calib = torch.cat(distance_plus_calib, dim = 0).unsqueeze(-1)
+        distance_minus_calib = torch.cat(distance_minus_calib, dim = 0).unsqueeze(-1)
+        
+        err_calib = (target_calib-mu_calib).pow(2).mean(dim=1, keepdim=True).sqrt()
+
+        uncertainty = 'aleatoric'
+
+        uncert_calib_aleatoric = logvar_calib.exp().mean(dim=1, keepdim=True)
+        uncert_calib_epistemic = var_calib.mean(dim=1, keepdim=True)
+
+        if uncertainty == 'aleatoric':
+            uncert_calib = uncert_calib_aleatoric.sqrt().clamp(0, 1)
+        elif uncertainty == 'epistemic':
+            uncert_calib = uncert_calib_epistemic.sqrt().clamp(0, 1)
         else:
+            uncert_calib = (uncert_calib_aleatoric + uncert_calib_epistemic).sqrt().clamp(0, 1)  # total
+        
+        y_p_test_list = []
+        mu_test_list = []
+        var_test_list = []
+        logvars_test_list = []
+        logvar_test_list = []
+        target_test_list = []
+
+        for i in range(1):
+            y_p_test = []
+            mus_test = []
+            vars_test = []
+            logvars_test = []
+            targets_test = []
+            distance_minus_test = []
+            distance_plus_test = []
 
             with torch.no_grad():
-                for batch_idx, (data, target) in enumerate(tqdm(calib_loader)):
+                for batch_idx, (data, target) in enumerate(tqdm(test_loader)):
                     data, target = data.to(device), target.to(device)
 
                     y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=True, test=True)
 
-                    y_p_calib.append(y_p.detach())
-                    vars_calib.append(var_bayesian.detach())
-                    logvars_calib.append(logvar.detach())
-                    targets_calib.append(target.detach())
-                    
+                    y_p_test.append(y_p.detach())
+                    vars_test.append(var_bayesian.detach())
+                    logvars_test.append(logvar.detach())
+                    targets_test.append(target.detach())
                     distances = dist_model(data).detach()
-                    distance_plus_calib.append(distances[:,0])
-                    distance_minus_calib.append(distances[:,1])
-            
-            
-                y_p_calib = torch.cat(y_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
-                mu_calib = y_p_calib.mean(dim=1)
-                var_calib = torch.cat(vars_calib, dim=0)
-                logvars_calib = torch.cat(logvars_calib, dim=1).permute(1,0,2)
-                logvar_calib = logvars_calib.mean(dim=1)
-                target_calib = torch.cat(targets_calib, dim=0)
-                distance_plus_calib = torch.cat(distance_plus_calib, dim = 0).unsqueeze(-1)
-                distance_minus_calib = torch.cat(distance_minus_calib, dim = 0).unsqueeze(-1)
+                    distance_plus_test.append(distances[:,0])
+                    distance_minus_test.append(distances[:,1])
+
+                y_p_test = torch.cat(y_p_test, dim=1).clamp(0, 1).permute(1,0,2)
+                mu_test = y_p_test.mean(dim=1)
+                var_test = torch.cat(vars_test, dim=0)
+                logvars_test = torch.cat(logvars_test, dim=1).permute(1,0,2)
+                logvar_test = logvars_test.mean(dim=1)
+                target_test = torch.cat(targets_test, dim=0)
+                distance_plus_test = torch.cat(distance_plus_test, dim = 0).unsqueeze(-1)
+                distance_minus_test = torch.cat(distance_minus_test, dim = 0).unsqueeze(-1)
+
+                y_p_test_list.append(y_p_test)
+                mu_test_list.append(mu_test)
+                var_test_list.append(var_test)
+                logvars_test_list.append(logvars_test)
+                logvar_test_list.append(logvar_test)
+                target_test_list.append(target_test)
                 
-                
-                err_calib = (target_calib-mu_calib).pow(2).mean(dim=1, keepdim=True).sqrt()
-
-                uncertainty = 'aleatoric'
-
-                uncert_calib_aleatoric = logvar_calib.exp().mean(dim=1, keepdim=True)
-                uncert_calib_epistemic = var_calib.mean(dim=1, keepdim=True)
-
-                if uncertainty == 'aleatoric':
-                    uncert_calib = uncert_calib_aleatoric.sqrt().clamp(0, 1)
-                elif uncertainty == 'epistemic':
-                    uncert_calib = uncert_calib_epistemic.sqrt().clamp(0, 1)
-                else:
-                    uncert_calib = (uncert_calib_aleatoric + uncert_calib_epistemic).sqrt().clamp(0, 1)  # total
-                
-
-        
-        if load_test:
-            load_path = 'C:/lior/studies/master/projects/calibration/regression calibration/regression_calibration/reports/var_and_mse_calib/'
-            with open(load_path + f'{base_model}_gaussian_boneage_test_results_partial.pickle', 'rb') as handle:
-                calib_dict = pickle.load(handle)
-                y_p_test_list = calib_dict['yp']
-                mu_test_list = calib_dict['mu']
-                logvar_test_list = calib_dict['logvar']
-                target_test_list = calib_dict['target']
-                
-        else:
-        
-            y_p_test_list = []
-            mu_test_list = []
-            var_test_list = []
-            logvars_test_list = []
-            logvar_test_list = []
-            target_test_list = []
-        
-
-            for i in range(1):
-                y_p_test = []
-                vars_test = []
-                logvars_test = []
-                targets_test = []
-                distance_minus_test = []
-                distance_plus_test = []
-
-                with torch.no_grad():
-                    for batch_idx, (data, target) in enumerate(tqdm(test_loader)):
-                        data, target = data.to(device), target.to(device)
-
-                        y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=True, test=True)
-
-                        y_p_test.append(y_p.detach())
-                        vars_test.append(var_bayesian.detach())
-                        logvars_test.append(logvar.detach())
-                        targets_test.append(target.detach())
-                        
-                        distances = dist_model(data).detach()
-                        distance_plus_test.append(distances[:,0])
-                        distance_minus_test.append(distances[:,1])
-                        
-                        
-
-                    y_p_test = torch.cat(y_p_test, dim=1).clamp(0, 1).permute(1,0,2)
-                    mu_test = y_p_test.mean(dim=1)
-                    var_test = torch.cat(vars_test, dim=0)
-                    logvars_test = torch.cat(logvars_test, dim=1).permute(1,0,2)
-                    logvar_test = logvars_test.mean(dim=1)
-                    target_test = torch.cat(targets_test, dim=0)
-                    distance_plus_test = torch.cat(distance_plus_test, dim = 0).unsqueeze(-1)
-                    distance_minus_test = torch.cat(distance_minus_test, dim = 0).unsqueeze(-1)
-                
-
-                    y_p_test_list.append(y_p_test)
-                    mu_test_list.append(mu_test)
-                    var_test_list.append(var_test)
-                    logvars_test_list.append(logvars_test)
-                    logvar_test_list.append(logvar_test)
-                    target_test_list.append(target_test)
-                    
-            if save_test:
-                save_path = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/tmp'
-                with open(save_path + f'{base_model}_gaussian_boneage_test_results_partial.pickle', 'wb') as handle:
-                    pickle.dump({'yp': y_p_test_list, 'mu': mu_test_list, 'target': target_test_list, 'logvar': logvar_test_list}, handle, protocol=pickle.HIGHEST_PROTOCOL)
-                    
         err_test = [(target_test-mu_test).pow(2).mean(dim=1, keepdim=True).sqrt() for target_test, mu_test in zip(target_test_list, mu_test_list)]
+        errvar_test = [(y_p_test-target_test.unsqueeze(1).repeat(1,25,1)).pow(2).mean(dim=(1,2)).unsqueeze(-1) for target_test, y_p_test in zip(target_test_list, y_p_test_list)]
 
         uncert_aleatoric_test = [logvar_test.exp().mean(dim=1, keepdim=True) for logvar_test in logvar_test_list]
-        # uncert_epistemic_test = [var_test.mean(dim=1, keepdim=True) for var_test in var_test_list]
-        
-        uncertainty = 'aleatoric'
+        uncert_epistemic_test = [var_test.mean(dim=1, keepdim=True) for var_test in var_test_list]
 
         if uncertainty == 'aleatoric':
             uncert_test = [uncert_aleatoric_t.sqrt().clamp(0, 1) for uncert_aleatoric_t in uncert_aleatoric_test]
@@ -392,7 +354,6 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
             uncert_test = [uncert_epistemic_t.sqrt().clamp(0, 1) for uncert_epistemic_t in uncert_epistemic_test]
         else:
             uncert_test = [(u_a_t + u_e_t).sqrt().clamp(0, 1) for u_a_t, u_e_t in zip(uncert_aleatoric_test, uncert_epistemic_test)]
-                
                 
         # CP/GC
         avg_len_before_list = []
@@ -402,18 +363,22 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         avg_cov_before_list = []
         avg_cov_after_single_list = []
         avg_cov_after_single_list_gc = []
+        
+        target_calib = target_calib.mean(dim=1, keepdim=True)
+        mu_calib = mu_calib.mean(dim=1, keepdim=True)
+        mu_test_list = [mu_test.mean(dim=1, keepdim=True) for mu_test in mu_test_list]
+        target_test_list = [target_test.mean(dim=1, keepdim=True) for target_test in target_test_list]
 
         for i in range(len(err_test)):
-            print(f"iter: {i}")
             q = set_scaler_conformal(target_calib, mu_calib, uncert_calib, err_calib=err_calib, gc=False, alpha=alpha)
-                    
+                     
             avg_len_single, avg_len_before = scale_bins_single_conformal(uncert_test[i], q)
             
             avg_cov_before = avg_cov(mu_test_list[i], uncert_test[i], target_test_list[i])
             avg_cov_after_single = avg_cov(mu_test_list[i], q * uncert_test[i], target_test_list[i])
             
             q_gc = set_scaler_conformal(target_calib, mu_calib, uncert_calib, err_calib=err_calib, gc=True, alpha=alpha)
-                    
+                     
             avg_len_single_gc, _ = scale_bins_single_conformal(uncert_test[i], q_gc)
             avg_cov_after_single_gc = avg_cov(mu_test_list[i], q_gc * uncert_test[i], target_test_list[i])
             
@@ -432,14 +397,12 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
             
             # cal avg new len and cov test set
         
-            length_add_test, coverage_add_test = calc_stats_new_method(target_test, mu_test, distance_plus_test, distance_minus_test, q_add, div=False)
+            length_add_test, coverage_add_test = calc_stats_new_method(target_test_list[i], mu_test_list[i], distance_plus_test, distance_minus_test, q_add, div=False)
             print(f'q_add: {q_add}, avg_len_single_new_add_test: {length_add_test}, avg_cov_after_single_new_add_test: {coverage_add_test}')
             
             q_all_new_method.append(q_add)
             avg_len_all_new_method.append(length_add_test)
             avg_cov_all_new_method.append(coverage_add_test)
-            
-            
             
         if calc_mean:
             top_limit = mu_test_list[0] + uncert_test[0] * q
@@ -472,7 +435,7 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
         q_all_gc.append(q_gc)
         avg_len_all_gc.append(torch.stack(avg_len_single_list_gc).mean().item())
         avg_cov_all_gc.append(torch.tensor(avg_cov_after_single_list_gc).mean().item())
-    
+        
     print(f"final results")
     print("cp")   
     print(q_all)
@@ -487,20 +450,21 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
     print(avg_len_all_new_method)
     print(avg_cov_all_new_method)
 
-    if len(q_all) > 1:
-        print(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}')
-        print(f'avg_len CP mean: {statistics.mean(avg_len_all)}, avg_len CP std: {statistics.stdev(avg_len_all)}')
-        print(f'avg_cov CP mean: {statistics.mean(avg_cov_all)}, avg_cov CP std: {statistics.stdev(avg_cov_all)}')
+
+    print(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}')
+    print(f'avg_len CP mean: {statistics.mean(avg_len_all)}, avg_len CP std: {statistics.stdev(avg_len_all)}')
+    print(f'avg_cov CP mean: {statistics.mean(avg_cov_all)}, avg_cov CP std: {statistics.stdev(avg_cov_all)}')
         
-        print(f'q GC mean: {statistics.mean(q_all_gc)}, q GC std: {statistics.stdev(q_all_gc)}')
-        print(f'avg_len GC mean: {statistics.mean(avg_len_all_gc)}, avg_len GC std: {statistics.stdev(avg_len_all_gc)}')
-        print(f'avg_cov GC mean: {statistics.mean(avg_cov_all_gc)}, avg_cov GC std: {statistics.stdev(avg_cov_all_gc)}')
+    print(f'q GC mean: {statistics.mean(q_all_gc)}, q GC std: {statistics.stdev(q_all_gc)}')
+    print(f'avg_len GC mean: {statistics.mean(avg_len_all_gc)}, avg_len GC std: {statistics.stdev(avg_len_all_gc)}')
+    print(f'avg_cov GC mean: {statistics.mean(avg_cov_all_gc)}, avg_cov GC std: {statistics.stdev(avg_cov_all_gc)}')
 
-        print(f'q new method mean: {statistics.mean(q_all_new_method)}, q GC std: {statistics.stdev(q_all_new_method)}')
-        print(f'avg_len method mean: {statistics.mean(avg_len_all_new_method)}, avg_len GC std: {statistics.stdev(avg_len_all_new_method)}')
-        print(f'avg_cov method mean: {statistics.mean(avg_cov_all_new_method)}, avg_cov GC std: {statistics.stdev(avg_cov_all_new_method)}')
+    print(f'q new method mean: {statistics.mean(q_all_new_method)}, q GC std: {statistics.stdev(q_all_new_method)}')
+    print(f'avg_len method mean: {statistics.mean(avg_len_all_new_method)}, avg_len GC std: {statistics.stdev(avg_len_all_new_method)}')
+    print(f'avg_cov method mean: {statistics.mean(avg_cov_all_new_method)}, avg_cov GC std: {statistics.stdev(avg_cov_all_new_method)}')
 
-    print(f"boneage, {base_model}, {alpha}")
-
+    print(f"oct, {base_model}, {alpha}")
+    
+    
 if __name__ == '__main__':
     main()
