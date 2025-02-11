@@ -194,9 +194,9 @@ def main():
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
     base_model = 'efficientnetb4'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:2")
     
-    alpha = 0.1
+    alpha = 0.05
     
     model = BreastPathQModel(base_model, out_channels=6).to(device)
 
