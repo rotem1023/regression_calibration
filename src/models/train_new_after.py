@@ -15,7 +15,6 @@ import numpy as np
 from tqdm import tqdm
 # from data_generator_breast import BreastPathQDataset
 from data_generator_boneage import BoneAgeDataset
-from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 from models import BreastPathQModel, DistancePredictor
@@ -161,7 +160,7 @@ class CustomMSELoss(nn.Module):
 
 def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'oct',
+          dataset = 'boneage',
           dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.005,
@@ -172,8 +171,8 @@ def train(base_model= 'densenet201',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          gpu=2,
-          level=5):
+          gpu=3,
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -241,7 +240,7 @@ def train(base_model= 'densenet201',
     
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(dist_optimizer, patience=lr_patience, factor=0.1)
 
-    loss_dist = nn.SmoothL1Loss(beta=lambda_param)
+    loss_dist = nn.MSELoss()
 
 
     train_losses = []

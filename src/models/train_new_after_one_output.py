@@ -65,7 +65,7 @@ def print_grad_norms(dist_model):
             print(f"Layer {name} | Grad Norm: {torch.norm(param.grad):.4f}")
 
 
-def aggregate_results(base_dataset, model, device):
+def aggregate_results(base_dataset, model, device, dataset):
     """
     Computes `mu` for all samples in the base dataset and aggregates results.
 
@@ -91,21 +91,28 @@ def aggregate_results(base_dataset, model, device):
                 print("data.shape[0] != 32")
                 continue
             # Compute `mu`
-            mu, _, _ = model(data)  # Assuming model returns (mu, logvar, _)
-
+            
+            # my version
+            # mu, _, _ = model(data)  # Assuming model returns (mu, logvar, _)
+            # lior version
+            mu, _, _ = model(data, dropout=True, mc_dropout=True, test=True)
+            mu = mu.clamp(0, 1).permute(1,0,2)
+            mu = mu.mean(dim=1)
+            if dataset =='oct':
+                mu = torch.mean(mu, dim = 1, keepdim=True)
+                target = torch.mean(target, dim=1, keepdim=True)
 
             # Store results
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
             target_list.append(target.cpu())
 
-
-        
-
     # Stack all results into tensors
     data_tensor = torch.cat(data_list, dim=0)
     mu_tensor = torch.cat(mu_list, dim=0).squeeze(0)
     target_tensor = torch.cat(target_list, dim=0).unsqueeze(-1)
+    if dataset =='oct':
+        target_tensor = target_tensor.squeeze(-1)
 
     return data_tensor, mu_tensor, target_tensor
 
@@ -129,29 +136,10 @@ class AggregatedDataset(Dataset):
 
 
 
-class CustomMSELoss(nn.Module):
-    def __init__(self, lambda_param=1.0):
-        super(CustomMSELoss, self).__init__()
-        self.lambda_param = lambda_param
-    
-    def forward(self, y_pred, y_true):
-        # Calculate the difference between predicted and true values
-        diff = y_pred - y_true
-        
-        # Penalize predictions smaller than the true values
-        loss_smaller = torch.where(diff < 0, self.lambda_param * torch.square(diff), torch.zeros_like(diff))
-        
-        # Penalize predictions larger than the true values with a regular penalty
-        loss_larger = torch.where(diff > 0, torch.square(diff), torch.zeros_like(diff))
-        
-        # Combine both penalties
-        total_loss = torch.mean(loss_smaller + loss_larger)
-               
-        return total_loss
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
-          dataset = 'boneage',
+          dataset = 'lumbar',
          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.001,
@@ -161,8 +149,8 @@ def train(base_model= 'densenet201',
           lr_patience=20,
           weight_decay=1e-8,
           lambda_param=1.0,
-          gpu=1,
-          level=2):
+          gpu=0,
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -223,13 +211,17 @@ def train(base_model= 'densenet201',
         
         model = load_trained_models.get_model_boneage(base_model, None, device)
         dist_model = DistancePredictorOneOutput(dist_model_name, in_channels =1).to(device)
-    
+    elif dataset == 'oct':
+        data_set_train = OCTDataset(group='train')
+        data_set_valid = OCTDataset(group='valid') 
+        model = load_trained_models.get_model_oct(base_model, None, device)
+        dist_model = DistancePredictorOneOutput(dist_model_name, in_channels = 3).to(device)  
     else:
         assert False
 
 
     dist_optimizer = optim.Adam(dist_model.parameters(), lr=1e-3)
-    loss_dist = CustomMSELoss(lambda_param=lambda_param)
+    loss_dist = torch.nn.MSELoss()
 
 
 
@@ -271,10 +263,7 @@ def train(base_model= 'densenet201',
 
                 # Forward pass for distance model
                 predicted_distances = dist_model(data)
-                true_distance = torch.abs(targets-mu)
-                true_d_plus = torch.clamp(targets - mu, min=0) # True d+
-                true_d_minus = torch.clamp(mu - targets, min=0) # True d-
-                true_cur_distance = true_d_plus
+                true_cur_distance = torch.abs(targets - mu)
 
                 # Compute loss for distance model
                 dist_loss = loss_dist(true_cur_distance.float(), predicted_distances.float())
@@ -283,7 +272,7 @@ def train(base_model= 'densenet201',
 
                 # Backward pass for the combined loss
                 dist_loss.backward()
-                print_grad_norms(dist_model=dist_model)
+                # print_grad_norms(dist_model=dist_model)
                 dist_optimizer.step()
                 
 
@@ -319,11 +308,8 @@ def train(base_model= 'densenet201',
 
                     # -------- Evaluate Distance Model --------
                     predicted_distances = dist_model(data) # Predict d+ and d-
-                    true_distance = torch.abs(targets-mu)
-                    true_d_plus = torch.clamp(targets - mu, min=0) # True d+
-                    true_d_minus = torch.clamp(mu - targets, min=0) # True d-
-                    true_cur_distance = true_d_plus
-
+                    true_cur_distance = torch.abs(targets - mu)
+                    
                     dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_cur_distance.float())
                     dist_valid_loss.append(dist_loss.item())
 

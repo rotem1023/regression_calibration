@@ -8,12 +8,13 @@ from data_generator_boneage import BoneAgeDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 
+# 'resnet101', 'densenet201', 'efficientnetb4'
 dataset_name = 'boneage'
 model_name = 'densenet201'
 dist_model_name = 'resnet50'
 loss = 'gaussian'
 gpu = '3'
-in_channels = 1
+in_channels = 3
 out_channels = 1
 results_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/notebooks/arrays'
 
@@ -29,7 +30,7 @@ def get_dataset(dataset_name):
     elif dataset_name=='oct':
         data_set = OCTDataset(group='valid') 
     else:
-        data_set = LumbarDataset(level=1, mode='valid', augment=False, scale=1)
+        data_set = LumbarDataset(level=1, mode='valid', augment=False, scale=0.5)
     return data_set
 
 
@@ -42,6 +43,9 @@ def get_arrays(data_loader, model, dist_model, device, dataset_name):
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
+            if data.shape[0] != 32:
+                print("data.shape[0] != 32")
+                continue
 
             if dataset_name !='lumbar':
                 y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=True, test=True)
@@ -79,7 +83,7 @@ model.load_state_dict(checkpoint['state_dict'])
 print("Loading previous weights at epoch " + str(checkpoint['epoch']) + " from\n" + checkpoint_path)
     
 dist_model_name = 'resnet50'
-dist_model = DistancePredictor(dist_model_name, in_channels=1).to(device)
+dist_model = DistancePredictor(dist_model_name, in_channels=in_channels).to(device)
 checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_{dataset_name}_snapshot_dist_{model_name}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
 dist_model.load_state_dict(checkpoint['state_dict'])
 dist_model.eval()
