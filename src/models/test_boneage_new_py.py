@@ -195,9 +195,9 @@ def main():
 def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False, partial=False):
     base_model = 'efficientnetb4'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:2")
     
-    alpha = 0.05
+    alpha = 0.1
     
     model = BreastPathQModel(base_model, in_channels=1, out_channels=1).to(device)
 

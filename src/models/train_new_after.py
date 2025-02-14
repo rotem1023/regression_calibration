@@ -158,7 +158,7 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'boneage',
           dist_model_name = 'resnet50',
@@ -171,7 +171,7 @@ def train(base_model= 'densenet201',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          gpu=3,
+          gpu=2,
           level=1):
     print("Current PID:", os.getpid())
 

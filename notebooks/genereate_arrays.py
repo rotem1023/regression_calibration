@@ -9,11 +9,11 @@ from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 
 # 'resnet101', 'densenet201', 'efficientnetb4'
-dataset_name = 'boneage'
+dataset_name = 'lumbar_L1'
 model_name = 'densenet201'
 dist_model_name = 'resnet50'
 loss = 'gaussian'
-gpu = '3'
+gpu = '0'
 in_channels = 3
 out_channels = 1
 results_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/notebooks/arrays'
@@ -47,10 +47,10 @@ def get_arrays(data_loader, model, dist_model, device, dataset_name):
                 print("data.shape[0] != 32")
                 continue
 
-            if dataset_name !='lumbar':
-                y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=True, test=True)
+            if 'lum' == dataset_name[:3]:
+                y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=False, test=False)
             else:
-                y_p, logvar, var_bayesian = model(data, dropout=False, mc_dropout=False, test=True)
+                y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=True, test=True)
             
             if dataset_name =='boneage':
                 target = target.squeeze(-1)
@@ -65,7 +65,7 @@ def get_arrays(data_loader, model, dist_model, device, dataset_name):
             distance_minus_s.append(distances[:,1])
 
     
-    if dataset_name != 'lumbar':    
+    if dataset_name[:3] != 'lum':    
         y_p_s = torch.cat(y_p_s, dim=1).clamp(0, 1).permute(1,0,2)
         y_p_s = y_p_s.mean(dim=1)  
         logvar_s = torch.cat(logvar_s, dim=1).permute(1,0,2)
@@ -84,7 +84,7 @@ print("Loading previous weights at epoch " + str(checkpoint['epoch']) + " from\n
     
 dist_model_name = 'resnet50'
 dist_model = DistancePredictor(dist_model_name, in_channels=in_channels).to(device)
-checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_{dataset_name}_snapshot_dist_{model_name}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
+checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_{dataset_name}_snapshot_dist_{model_name}_lambda_1_new.pth.tar', map_location=device)
 dist_model.load_state_dict(checkpoint['state_dict'])
 dist_model.eval()
 

@@ -15,7 +15,6 @@ import numpy as np
 from tqdm import tqdm
 # from data_generator_breast import BreastPathQDataset
 from data_generator_boneage import BoneAgeDataset
-from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 from models import BreastPathQModel, DistancePredictorOneOutput
@@ -137,7 +136,7 @@ class AggregatedDataset(Dataset):
 
 
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
          dist_model_name = 'resnet50',
@@ -202,7 +201,7 @@ def train(base_model= 'efficientnetb4',
 
         train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
-        model = load_trained_models.get_model_lumbar(base_model, None, device)
+        model = load_trained_models.get_model_lumbar(base_model, level, None, device)
         dist_model = DistancePredictorOneOutput(dist_model_name).to(device)
     elif dataset=='boneage':
         resize_to = (256, 256)
@@ -236,8 +235,8 @@ def train(base_model= 'efficientnetb4',
     train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
     valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=False)
     
-    data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device)
-    data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device)
+    data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, dataset_name)
+    data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset_name)
     aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, target_tensor_train)
     aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, target_tensor_valid)
     

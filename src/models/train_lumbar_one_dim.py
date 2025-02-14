@@ -13,7 +13,6 @@ import numpy as np
 from tqdm import tqdm
 # from data_generator_breast import BreastPathQDataset
 from data_generator_boneage import BoneAgeDataset
-from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 from models import BreastPathQModel
@@ -37,7 +36,7 @@ def save_current_snapshot(base_model, likelihood, dataset, e, model, save_x, sav
     }, filename)
     print(f"Saved file: {filename}")
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           batch_size=32,
@@ -47,9 +46,9 @@ def train(base_model= 'efficientnetb4',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          pred_x = True,
-          pred_y = False,
-          gpu=2,
+          pred_x = False,
+          pred_y = True,
+          gpu=0,
           level=1):
     print("Current PID:", os.getpid())
 
@@ -72,6 +71,7 @@ def train(base_model= 'efficientnetb4',
     print("weight_decay =", weight_decay)
     print("device =", device)
     print(f"level: {level}")
+    print(f"prex x: {pred_x}, pred y: {pred_y}")
 
     writer = SummaryWriter(comment=f"_{dataset}_{base_model}_{likelihood}")
 
@@ -330,10 +330,10 @@ def train(base_model= 'efficientnetb4',
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-            save_current_snapshot(base_model, likelihood, dataset_name, e, model, optimizer_net, train_losses, valid_losses, 0, 0)
+            save_current_snapshot(base_model, likelihood, dataset_name, model=model, save_x=pred_x, save_y=pred_y, e = e)
 
     except KeyboardInterrupt:
-        save_current_snapshot(base_model, likelihood, dataset_name, e-1, model, optimizer_net, train_losses, valid_losses, 0, 0)
+        save_current_snapshot(base_model, likelihood, dataset_name,model=model, save_x=pred_x, save_y=pred_y, e = e)
 
 
 if __name__ == '__main__':

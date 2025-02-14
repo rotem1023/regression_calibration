@@ -13,7 +13,7 @@ class LumbarDataset(Dataset):
     Loads the EndoVis instrument tracking data set
     """
 
-    def __init__(self, level, mode='train', scale=1.0, augment=False):
+    def __init__(self, level, mode='train', scale=1.0, augment=False, pred_x = False, pred_y = False):
         """
         Given the root directory of the dataset, this function initializes the
         data set
@@ -24,7 +24,9 @@ class LumbarDataset(Dataset):
         self._scale = scale
         self._level = level
         self._augment = augment
-        
+        self.pred_x = pred_x
+        self.pred_y = pred_y
+                
         # get current file dir
         current_dir = os.path.dirname(os.path.abspath(__file__))
         idx_dir = os.path.join(current_dir, 'data')
@@ -73,7 +75,12 @@ class LumbarDataset(Dataset):
         x = self.to_pil_and_resize(x, self._scale)
 
         y = np.array(split_val[1:], dtype=np.float32)
-        y = (y[0] + y[1]) / 2
+        if (not self.pred_x) and (not self.pred_y): 
+            y = (y[0] + y[1]) / 2
+        elif self.pred_x:
+            y = y[0]
+        else:
+            y = y[1]
         
 
         # horizontal flipping
