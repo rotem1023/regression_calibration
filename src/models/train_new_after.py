@@ -25,9 +25,9 @@ import load_trained_models
 from torch.utils.data import Dataset, DataLoader
 
 
-def save_snapshot(model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, is_best = False):
+def save_snapshot(save_dir, model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, is_best = False):
     suffix = 'best' if is_best else 'new'
-    save_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new'
+    
     os.makedirs(save_dir, exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
     filename = f"{save_dir}/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_scale_factor{int(scale_factor)}_{suffix}.pth.tar"
@@ -201,15 +201,24 @@ def train(base_model= 'efficientnetb4',
     print("Current Time:", current_time)
 
     writer = SummaryWriter(comment=f"_{dataset}_{base_model}_{likelihood}")
-
+    save_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new'
 
     dataset_name = dataset
     if dataset == 'lumbar':
+        pred_x = False
+        pred_y = False
+        
         dataset_name = f'{dataset}_L{level}'
-        data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5)
-        data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5)
+        data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5, pred_x=pred_x, pred_y=pred_y)
+        data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5, pred_x=pred_x, pred_y=pred_y)
         model = load_trained_models.get_model_lumbar(base_model, level, None, device)
         dist_model = DistancePredictor(dist_model_name).to(device)
+        if pred_x or pred_y:
+            save_dir =f"{save_dir}/one_dim"
+            if pred_x:
+                save_dir= f"{save_dir}/x"
+            else:
+                save_dir = f"{save_dir}/y"        
     elif dataset=='boneage':
         resize_to = (256, 256)
         data_set_train = BoneAgeDataset(group='train', augment=augment, resize_to=resize_to)
@@ -362,9 +371,10 @@ def train(base_model= 'efficientnetb4',
             #     save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, scale_factor=scale_factor, is_best=True)
 
 
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)
+            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,save_dir=save_dir)
     except KeyboardInterrupt:
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,)
+            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,save_dir=save_dir
+                        )
             
             
 if __name__ == '__main__':
