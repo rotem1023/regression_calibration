@@ -231,11 +231,12 @@ def train(base_model,
         in_channels = 3
         out_channels = 2
         pretrained = True
-
+        pred_x = False,
+        pred_y = False,
         
 
-        data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5)
-        data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5)
+        data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5, pred_x=pred_x, pred_y=pred_y)
+        data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5, pred_x=pred_x, pred_y=pred_y)
 
         assert len(data_set_train) > 0
         assert len(data_set_valid) > 0
@@ -245,6 +246,19 @@ def train(base_model,
 
         train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
+        
+        results_dir = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
+        filename = f"{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr"
+        if pred_x or pred_y:
+            results_dir = f"{results_dir}/one_dim"
+            if pred_x:
+                results_dir = f"{results_dir}/x"
+            else:
+                results_dir = f"{results_dir}/y"
+        else:
+            raise Exception("predict only x ot y")
+        filename = f"{results_dir}/{filename}"
+        
     elif dataset == 'oct':
         in_channels = 3
         out_channels = 6
@@ -403,8 +417,7 @@ def train(base_model,
             #   is_best = True
 
             if is_best:
-                # filename = f"./snapshots/{base_model}_{likelihood}_{dataset}_best.pth.tar"
-                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best.pth.tar'
+                cur_filename= f"{filename}_best.pth.tar"
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
@@ -414,13 +427,13 @@ def train(base_model,
                     'val_losses': valid_losses,
                     'coverage': coverage,
                     'avg_len': avg_length
-                }, filename)
+                }, cur_filename)
 
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new.pth.tar'
-            print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}. filename: {filename}")
+            cur_filename= f"{filename}_new.pth.tar"
+            print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}. filename: {cur_filename}")
             torch.save({
                     'epoch': e,
                     'state_dict': model.state_dict(),
@@ -429,10 +442,10 @@ def train(base_model,
                     'val_losses': valid_losses,
                     'coverage': coverage,
                     'avg_len': avg_length
-                }, filename)
+                }, cur_filename)
     except KeyboardInterrupt:
-        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new.pth.tar'
-        print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}, filename: {filename}")
+        cur_filename= f"{filename}_new.pth.tar"
+        print(f"KeyboardInterrupt: Saving best weights so far with val_loss: {valid_losses[-1]:.5f}. filename: {cur_filename}")
         torch.save({
                     'epoch': e,
                     'state_dict': model.state_dict(),
@@ -441,7 +454,7 @@ def train(base_model,
                     'val_losses': valid_losses,
                     'coverage': coverage,
                     'avg_len': avg_length
-                }, filename)
+                }, cur_filename)
 
 if __name__ == '__main__':
     

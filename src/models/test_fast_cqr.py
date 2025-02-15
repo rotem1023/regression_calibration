@@ -141,6 +141,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
+    pred_x = False
+    pred_y = False
     iters = 20
     level = 5
     alpha = 0.05
@@ -149,8 +151,14 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     model = BreastPathQModel(base_model, out_channels=2).to(device)
 
-    # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
+    if pred_x or pred_y:
+        models_dir = f"{models_dir}/one_dim"
+        if pred_x:
+            models_dir = f"{models_dir}/x"
+        else:
+            models_dir = f"{models_dir}/y"
+    else:
+        raise Exception("predict only x ot y")
     checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"epoch: {checkpoint['epoch']}")
@@ -174,10 +182,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     # save arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr"
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
     
     
     
@@ -257,6 +265,15 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     # Define the output file path
     output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
     output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
+    if pred_x or pred_y:
+        output_dir = f"{output_dir}/one_dim"
+        if pred_x:
+            output_dir = f"{output_dir}/x"
+        else:
+            output_dir = f"{output_dir}/y"
+    else:
+        raise Exception("predict only x ot y")
+    
 
     # Open the file in append mode
     with open(f'{output_dir}/{output_file}', "w") as f:
