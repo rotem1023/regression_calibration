@@ -136,9 +136,9 @@ class AggregatedDataset(Dataset):
 
 
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'lumbar',
+          dataset = 'boneage',
          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.001,
@@ -148,8 +148,8 @@ def train(base_model= 'efficientnetb4',
           lr_patience=20,
           weight_decay=1e-8,
           lambda_param=1.0,
-          gpu=3,
-          level=5):
+          gpu=2,
+          level=1):
     print("Current PID:", os.getpid())
 
 

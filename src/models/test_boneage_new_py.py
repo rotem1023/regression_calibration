@@ -12,7 +12,7 @@ import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from data_generator_boneage import BoneAgeDataset
-from models import BreastPathQModel, DistancePredictor
+from models import BreastPathQModel, DistancePredictor, DistancePredictorOneOutput
 from glob import glob
 import statistics
 import math
@@ -193,12 +193,14 @@ def main():
         
         
 def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regression calibration/rsna-bone-age", save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False, partial=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
+    dist_model_name = 'resnet50'
+    one_output = True
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
     
-    alpha = 0.1
-    
+    alpha = 0.05
+        
     model = BreastPathQModel(base_model, in_channels=1, out_channels=1).to(device)
 
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_boneage_499.pth.tar")[0]
@@ -207,9 +209,13 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
     model.load_state_dict(checkpoint['state_dict'])
     print("Loading previous weights at epoch " + str(checkpoint['epoch']) + " from\n" + checkpoint_path)
     
-    dist_model_name = 'resnet50'
-    dist_model = DistancePredictor(dist_model_name, in_channels=1).to(device)
-    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_boneage_snapshot_dist_{base_model}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
+
+    if one_output:
+        dist_model = DistancePredictorOneOutput(dist_model_name, in_channels=1).to(device)
+        checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/one_output/{dist_model_name}_boneage_snapshot_dist_{base_model}_lambda_1_new.pth.tar', map_location=device)
+    else:
+        dist_model = DistancePredictor(dist_model_name, in_channels=1).to(device)
+        checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_boneage_snapshot_dist_{base_model}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
     dist_model.load_state_dict(checkpoint['state_dict'])
     dist_model.eval()
     
@@ -283,8 +289,12 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                     targets_calib.append(target.detach())
                     
                     distances = dist_model(data).detach()
-                    distance_plus_calib.append(distances[:,0])
-                    distance_minus_calib.append(distances[:,1])
+                    if one_output:
+                        distance_plus_calib.append(distances[:,0])
+                        distance_minus_calib.append(distances[:,0])
+                    else:
+                        distance_plus_calib.append(distances[:,0])
+                        distance_minus_calib.append(distances[:,1])
             
             
                 y_p_calib = torch.cat(y_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
@@ -352,8 +362,12 @@ def eval_test_set(data_dir="C:\lior\studies\master\projects\calibration/regressi
                         targets_test.append(target.detach())
                         
                         distances = dist_model(data).detach()
-                        distance_plus_test.append(distances[:,0])
-                        distance_minus_test.append(distances[:,1])
+                        if one_output:
+                            distance_plus_test.append(distances[:,0])
+                            distance_minus_test.append(distances[:,0])
+                        else:
+                            distance_plus_test.append(distances[:,0])
+                            distance_minus_test.append(distances[:,1])
                         
                         
 

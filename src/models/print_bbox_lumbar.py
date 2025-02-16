@@ -11,6 +11,8 @@ import math
 import torch
 import numpy as np
 import random
+from cqr_model import BreastPathQModel
+
 
 # Set fixed seed for reproducibility
 seed = 42
@@ -26,8 +28,8 @@ Q_CP_X = {1: {'efficientnetb4': 1.7737019300460815}}
 Q_CP_Y = {1: {'efficientnetb4': 1.7279503345489502}}
 Q_NEW_X = {1: {'efficientnetb4': 0.07284029275178909}}
 Q_NEW_Y = {1: {'efficientnetb4': 0.07355879656970502}}
-Q_CQR_X = {1: {'efficientnetb4': 0}}
-Q_CQR_X = {1: {'efficientnetb4': 1}}
+Q_CQR_X = {1: {'efficientnetb4': 0.01565587818622589}}
+Q_CQR_Y = {1: {'efficientnetb4': 0.09326351061463356}}
 
 
 class Bbox():
@@ -39,6 +41,14 @@ class Bbox():
         
     def toList(self):
         return [self.x_minus, self.y_minus, self.x_plus, self.y_plus]
+
+
+def get_cqr_model(base_model, level, alpha, dim, device):
+    models_dir = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/one_dim/{dim}'
+    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
+    model = BreastPathQModel(base_model, out_channels=2).to(device)
+    model.load_state_dict(checkpoint['state_dict'])
+    return model
 
 
 class LumbarDataset(Dataset):
@@ -79,14 +89,19 @@ class LumbarDataset(Dataset):
         one_output = False
         lambda_param = 1
         level = 1
+        alpha = 0.05
         self.model_x = load_trained_models.get_model_lumbar(base_model, level, None, self.device, loss=loss, pred_x=True, pred_y=False)
         self.dist_model_x = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, self.device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=True, pred_y=False)
         self.model_y = load_trained_models.get_model_lumbar(base_model, level, None, self.device, loss=loss, pred_x=False, pred_y=True)
         self.dist_model_y = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, self.device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=False, pred_y=True)
+        self.cqr_model_x = get_cqr_model(base_model=base_model, level=level, alpha=0.05, dim = 'x', device=self.device)
+        self.cqr_model_y = get_cqr_model(base_model=base_model, level=level, alpha=0.05, dim = 'y', device=self.device)
         self.q_x_my_model = Q_NEW_X[level][base_model]
         self.q_y_my_model = Q_NEW_Y[level][base_model]
         self.q_x_cp =  Q_CP_X[level][base_model]
-        self.q_y_cp = Q_CP_Y[level][base_model]       
+        self.q_y_cp = Q_CP_Y[level][base_model]  
+        self.q_x_cqr = Q_CQR_X[level][base_model]
+        self.q_y_cqr = Q_CQR_Y[level][base_model]     
     
     def _calc_b_box(self, x):
         x = x.to(self.device).unsqueeze(0)
@@ -121,7 +136,19 @@ class LumbarDataset(Dataset):
         
         bbox_cp = Bbox(x_minus=x_minus.item(), x_plus=x_plus.item(), y_minus=y_minus.item(), y_plus=y_plus.item())
         
-        return bbox_my, bbox_cp, mu_x, mu_y
+        
+        # cqr 
+        cqr_x = self.cqr_model_x(x).detach()
+        cqr_y = self.cqr_model_y(x).detach()
+        
+        x_minus_cqr = cqr_x[0][0] - self.q_x_cqr
+        x_plus_cqr = cqr_x[0][1] + self.q_x_cqr
+        y_minus_cqr = cqr_y[0][0] - self.q_y_cqr
+        y_plus_cqr = cqr_y[0][1] + self.q_y_cqr
+        bbox_cqr = Bbox(x_minus=x_minus_cqr, x_plus=x_plus_cqr, y_minus=y_minus_cqr, y_plus=y_plus_cqr)
+
+        
+        return bbox_my, bbox_cp, bbox_cqr, mu_x, mu_y
         
             
             
@@ -166,15 +193,21 @@ class LumbarDataset(Dataset):
         x_calc = self.to_pil_and_resize(x, self._scale)
 
         # Extract bounding box coordinates from file (assumed format: x_min, y_min, x_max, y_max)
-        my_bbox, cp_bbbox, mu_x, mu_y = self._calc_b_box(trans(x_calc))
+        my_bbox, cp_bbbox, cqr_bbox, mu_x, mu_y = self._calc_b_box(trans(x_calc))
 
         # Draw bounding box
         mu = [mu_x, mu_y]
+        
         my_image = self.draw_bounding_box(x_calc, my_bbox, y, mu)
         # my_image.save(f"{img_path.split('/')[-1]}_my_image.jpg")
+        
+        cqr_image = self.draw_bounding_box(x_calc, cqr_bbox, y, mu, outline_color='pink')
        
         cp_image = self.draw_bounding_box(x_calc, cp_bbbox, y, mu, outline_color='orange')
         cp_image.save(f"{img_path.split('/')[-1]}_cp_image.jpg")
+        
+        
+        
         x = trans(x)
 
         return x
@@ -220,5 +253,5 @@ class LumbarDataset(Dataset):
 
 dataset = LumbarDataset(level=1, mode='test', scale=1.0, augment=False)
 
-for i in range(10):
+for i in range(10,20):
     sample = dataset[i]

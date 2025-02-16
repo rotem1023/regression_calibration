@@ -15,7 +15,7 @@ from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_oct import OCTDataset
-from models import BreastPathQModel, DistancePredictor
+from models import BreastPathQModel, DistancePredictor, DistancePredictorOneOutput
 from glob import glob
 import statistics
 import math
@@ -61,6 +61,7 @@ def get_arrays(data_loader):
             data, target = data, target
             data_s.append(data)
             targets_s.append(target.detach())  
+
 
             
                              
@@ -196,7 +197,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     
-    alpha = 0.05
+    alpha = 0.1
     
     model = BreastPathQModel(base_model, out_channels=6).to(device)
 
@@ -207,8 +208,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     print("Loading previous weights at epoch " + str(checkpoint['epoch']) + " from\n" + checkpoint_path)
     
     dist_model_name = 'resnet50'
-    dist_model = DistancePredictor(dist_model_name, in_channels=3).to(device)
-    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_oct_snapshot_dist_{base_model}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
+    dist_model = DistancePredictorOneOutput(dist_model_name, in_channels=3).to(device)
+    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/one_output/{dist_model_name}_oct_snapshot_dist_{base_model}_lambda_1_new.pth.tar', map_location=device)
     dist_model.load_state_dict(checkpoint['state_dict'])
     dist_model.eval()
     
@@ -269,8 +270,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
                 targets_calib.append(target.detach())
                 
                 distances = dist_model(data).detach()
+                # distance_plus_calib.append(distances[:,0])
+                # distance_minus_calib.append(distances[:,1])
                 distance_plus_calib.append(distances[:,0])
-                distance_minus_calib.append(distances[:,1])
+                distance_minus_calib.append(distances[:,0])
         
         
         y_p_calib = torch.cat(y_p_calib, dim=1).clamp(0, 1).permute(1,0,2)
@@ -323,8 +326,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
                     logvars_test.append(logvar.detach())
                     targets_test.append(target.detach())
                     distances = dist_model(data).detach()
+                    # distance_plus_test.append(distances[:,0])
+                    # distance_minus_test.append(distances[:,1])
                     distance_plus_test.append(distances[:,0])
-                    distance_minus_test.append(distances[:,1])
+                    distance_minus_test.append(distances[:,0])
 
                 y_p_test = torch.cat(y_p_test, dim=1).clamp(0, 1).permute(1,0,2)
                 mu_test = y_p_test.mean(dim=1)

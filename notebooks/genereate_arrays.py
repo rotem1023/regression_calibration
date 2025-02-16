@@ -9,12 +9,12 @@ from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 
 # 'resnet101', 'densenet201', 'efficientnetb4'
-dataset_name = 'boneage'
+dataset_name = 'lumbar_L5'
 model_name = 'efficientnetb4'
 dist_model_name = 'resnet50'
 loss = 'gaussian'
-gpu = '3'
-in_channels = 1
+gpu = '0'
+in_channels = 3
 out_channels = 1
 results_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/notebooks/arrays'
 
@@ -84,7 +84,7 @@ print("Loading previous weights at epoch " + str(checkpoint['epoch']) + " from\n
     
 dist_model_name = 'resnet50'
 dist_model = DistancePredictor(dist_model_name, in_channels=in_channels).to(device)
-checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_{dataset_name}_snapshot_dist_{model_name}_lambda_1_scale_factor1_new.pth.tar', map_location=device)
+checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{dist_model_name}_{dataset_name}_snapshot_dist_{model_name}_lambda_1_new.pth.tar', map_location=device)
 dist_model.load_state_dict(checkpoint['state_dict'])
 dist_model.eval()
 

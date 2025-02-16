@@ -14,7 +14,6 @@ import torch
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
-from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from cqr_model import BreastPathQModel
 from glob import glob
@@ -137,14 +136,15 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
+    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     pred_x = False
-    pred_y = False
+    pred_y = True
     iters = 20
-    level = 5
+    level = 1
     alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
@@ -153,10 +153,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     if pred_x or pred_y:
         models_dir = f"{models_dir}/one_dim"
+        output_dir = f"{output_dir}/one_dim"
         if pred_x:
             models_dir = f"{models_dir}/x"
+            output_dir = f"{output_dir}/x"
         else:
             models_dir = f"{models_dir}/y"
+            output_dir = f"{output_dir}/y"
     else:
         raise Exception("predict only x ot y")
     checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
@@ -263,16 +266,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     print(f"test coverage's {cov_test_sets}")
 
     # Define the output file path
-    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
+
     output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
-    if pred_x or pred_y:
-        output_dir = f"{output_dir}/one_dim"
-        if pred_x:
-            output_dir = f"{output_dir}/x"
-        else:
-            output_dir = f"{output_dir}/y"
-    else:
-        raise Exception("predict only x ot y")
     
 
     # Open the file in append mode

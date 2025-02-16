@@ -15,7 +15,7 @@ import sys
 import os
 #from src.data.data_generator_breast import BreastPathQDataset
 from data_generator_boneage import BoneAgeDataset
-from data_generator_endovis import EndoVisDataset
+# from data_generator_endovis import EndoVisDataset
 from data_generator_oct import OCTDataset
 from cqr_model import BreastPathQModel
 # from models import BreastPathQModel as BreastPathQModelGauss
@@ -231,8 +231,8 @@ def train(base_model,
         in_channels = 3
         out_channels = 2
         pretrained = True
-        pred_x = False,
-        pred_y = False,
+        pred_x = False
+        pred_y = True
         
 
         data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5, pred_x=pred_x, pred_y=pred_y)
@@ -257,6 +257,7 @@ def train(base_model,
                 results_dir = f"{results_dir}/y"
         else:
             raise Exception("predict only x ot y")
+        print(f"x: {pred_x}, y: {pred_y}")
         filename = f"{results_dir}/{filename}"
         
     elif dataset == 'oct':
@@ -418,7 +419,7 @@ def train(base_model,
 
             if is_best:
                 cur_filename= f"{filename}_best.pth.tar"
-                print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
+                print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}, file: {filename}")
                 torch.save({
                     'epoch': e,
                     'state_dict': model.state_dict(),
@@ -468,10 +469,10 @@ if __name__ == '__main__':
     dataset = 'lumbar'
     # efficientnetb4 densenet201
     base_model = 'efficientnetb4'
-    level = 5
+    level = 1
     epochs=50
     alpha=0.05
-    GPU=3
+    GPU=0
     
     print("Process ID: ", os.getpid())
 

@@ -14,6 +14,12 @@ def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, los
         lambda_st = f"_lambda_{lambda_param}"
         if loss =="mse":
             models_dir = f"{models_dir}_mse"
+        if pred_x or pred_y:
+            models_dir = f'{models_dir}/one_dim'
+            if pred_x:
+                models_dir = f"{models_dir}/x"
+            else:
+                models_dir = f"{models_dir}/y"
         checkpoint = torch.load(f'{models_dir}/{model_name}_lumbar_L{level}_snapshot_dist_{base_model}{lambda_st}_new.pth.tar', map_location=device)
     else:        
         if loss == "gaussian":
@@ -27,7 +33,7 @@ def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, los
             if pred_x:
                 path = f'{models_dir}/{model_name}_{loss}_lumbar_L{level}_snapshot_x.pth.tar' 
             else:
-                f'{models_dir}/{model_name}_{loss}_lumbar_L{level}_snapshot_y.pth.tar'   
+                path = f'{models_dir}/{model_name}_{loss}_lumbar_L{level}_snapshot_y.pth.tar'   
         else:
             path  = f'{models_dir}/{model_name}_{loss}_lumbar_L{level}_best.pth.tar'            
         checkpoint = torch.load(path, map_location=device)
