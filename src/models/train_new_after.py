@@ -158,7 +158,7 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           dist_model_name = 'resnet50',
@@ -172,7 +172,7 @@ def train(base_model= 'densenet201',
           lambda_param=1.0,
           scale_factor = 1,
           gpu=2,
-          level=4):
+          level=2):
     print("Current PID:", os.getpid())
 
 
@@ -338,11 +338,11 @@ def train(base_model= 'densenet201',
 
                     # -------- Evaluate Distance Model --------
                     predicted_distances = dist_model(data) # Predict d+ and d-
-                    print("Predicted distances:", predicted_distances[:1])
+                    # print("Predicted distances:", predicted_distances[:1])
                     true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
                     true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
-                    print("true distance:", true_distances[:1])
+                    # print("true distance:", true_distances[:1])
 
                     dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
                     dist_valid_loss.append(dist_loss.item())

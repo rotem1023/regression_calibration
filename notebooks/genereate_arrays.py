@@ -9,11 +9,11 @@ from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 
 # 'resnet101', 'densenet201', 'efficientnetb4'
-dataset_name = 'lumbar_L5'
-model_name = 'efficientnetb4'
+dataset_name = 'lumbar_L4'
+model_name = 'densenet201'
 dist_model_name = 'resnet50'
 loss = 'gaussian'
-gpu = '0'
+gpu = '3'
 in_channels = 3
 out_channels = 1
 results_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/notebooks/arrays'
