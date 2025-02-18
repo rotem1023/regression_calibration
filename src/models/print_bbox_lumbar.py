@@ -253,5 +253,5 @@ class LumbarDataset(Dataset):
 
 dataset = LumbarDataset(level=1, mode='test', scale=1.0, augment=False)
 
-for i in range(10,20):
+for i in range(20):
     sample = dataset[i]

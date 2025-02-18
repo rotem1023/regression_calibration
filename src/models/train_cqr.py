@@ -231,8 +231,8 @@ def train(base_model,
         in_channels = 3
         out_channels = 2
         pretrained = True
-        pred_x = False
-        pred_y = True
+        pred_x = True
+        pred_y = False
         
 
         data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5, pred_x=pred_x, pred_y=pred_y)
@@ -470,9 +470,9 @@ if __name__ == '__main__':
     # efficientnetb4 densenet201
     base_model = 'efficientnetb4'
     level = 1
-    epochs=50
+    epochs=150
     alpha=0.05
-    GPU=0
+    GPU=2
     
     print("Process ID: ", os.getpid())
 

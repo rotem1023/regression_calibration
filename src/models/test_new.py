@@ -23,6 +23,17 @@ import math
 import load_trained_models
 import numpy as np
 import torch
+import random
+
+
+
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)  # If using multiple GPUs
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, alpha, addtvie):
     if addtvie:
@@ -230,13 +241,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     device = torch.device("cuda:3")
     dataset = 'lumbar'
     loss = 'gaussian'
-    one_output = True
+    one_output = False
     load_results = False
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 5
-    alpha = 0.05
+    level = 4
+    alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     

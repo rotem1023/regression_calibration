@@ -1,6 +1,6 @@
-q mean: 0.01565587818622589, q std: 0.004188603171255396
-avg_len valid  mean: 0.474538192152977, avg_len valid std: 0.009194338056819299
+q mean: 0.008672051131725311, q std: 0.004226797308442263
+avg_len valid  mean: 0.45373056530952455, avg_len valid std: 0.009352477488009164
 avg_cov valid mean: 95.08975982666016, avg_cov std: 0.0
-avg_len test mean: 0.473968417942524, avg_len test std: 0.008501228603464807
-avg_cov test mean: 94.89704322814941, avg_cov test std: 0.7162471973419006
+avg_len test mean: 0.4534403920173645, avg_len test std: 0.007874484107942746
+avg_cov test mean: 95.02375946044921, avg_cov test std: 0.7476395767001948
 lumbar cqr, efficientnetb4, 0.05, 1

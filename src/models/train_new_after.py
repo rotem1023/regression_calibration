@@ -158,9 +158,9 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'boneage',
+          dataset = 'lumbar',
           dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.005,
@@ -172,7 +172,7 @@ def train(base_model= 'efficientnetb4',
           lambda_param=1.0,
           scale_factor = 1,
           gpu=2,
-          level=1):
+          level=4):
     print("Current PID:", os.getpid())
 
 
@@ -371,10 +371,9 @@ def train(base_model= 'efficientnetb4',
             #     save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, scale_factor=scale_factor, is_best=True)
 
 
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,save_dir=save_dir)
+            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor)
     except KeyboardInterrupt:
-            save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor,save_dir=save_dir
-                        )
+            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor)
             
             
 if __name__ == '__main__':
