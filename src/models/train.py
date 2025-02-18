@@ -13,7 +13,6 @@ import numpy as np
 from tqdm import tqdm
 # from data_generator_breast import BreastPathQDataset
 from data_generator_boneage import BoneAgeDataset
-from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 from models import BreastPathQModel
@@ -27,16 +26,16 @@ torch.backends.cudnn.benchmark = True
 
 def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
-          dataset = 'boneage',
+          dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=400,
+          epochs=50,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=2,
-          level=5):
+          gpu=3,
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -180,8 +179,8 @@ def train(base_model= 'efficientnetb4',
     
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
 
-    checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new_mse/tmp/efficientnetb4_gaussian_boneage_snapshot_my_version.pth.tar', map_location=device)
-    model.load_state_dict(checkpoint['state_dict'])
+    # checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new_mse/tmp/efficientnetb4_gaussian_boneage_snapshot_my_version.pth.tar', map_location=device)
+    # model.load_state_dict(checkpoint['state_dict'])
     # epochs_finsihed = checkpoint['epoch']
     # epochs = epochs - epochs_finsihed
     # if epochs < 2:
@@ -232,6 +231,9 @@ def train(base_model= 'efficientnetb4',
             print("lr =", optimizer_net.param_groups[0]['lr'])
             for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
                 data, targets = data.to(device), targets.to(device)
+                if dataset== 'lumbar':
+                    targets = targets.unsqueeze(-1)
+                
                 optimizer_net.zero_grad()
                 mu, logvar, _ = model(data, dropout=False)
                 if torch.isnan(mu).any().item():
@@ -263,7 +265,7 @@ def train(base_model= 'efficientnetb4',
             mu_train = torch.cat(mu_train, dim=0)
             logvar_train = torch.cat(logvar_train, dim=0)
             # mse_train = metric(mu_train, targets_train)
-            mse_train = metric(mu_train, targets_train.unsqueeze(-1))
+            mse_train = metric(mu_train, targets_train)
 
 
             model.eval()
@@ -275,6 +277,8 @@ def train(base_model= 'efficientnetb4',
             with torch.no_grad():
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
+                    if dataset== 'lumbar':
+                        targets = targets.unsqueeze(-1)
                     mu, logvar, _ = model(data, dropout=False)
                     loss = nll_criterion(mu, logvar, targets).to(device)
                     epoch_valid_loss.append(loss.item())

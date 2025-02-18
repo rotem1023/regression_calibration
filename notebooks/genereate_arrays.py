@@ -9,7 +9,7 @@ from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
 
 # 'resnet101', 'densenet201', 'efficientnetb4'
-dataset_name = 'lumbar_L4'
+dataset_name = 'lumbar_L5'
 model_name = 'densenet201'
 dist_model_name = 'resnet50'
 loss = 'gaussian'

@@ -46,9 +46,9 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          pred_x = False,
-          pred_y = True,
-          gpu=0,
+          pred_x = True,
+          pred_y = False,
+          gpu=1,
           level=1):
     print("Current PID:", os.getpid())
 
@@ -234,6 +234,8 @@ def train(base_model= 'densenet201',
             print("lr =", optimizer_net.param_groups[0]['lr'])
             for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
                 data, targets = data.to(device), targets.to(device)
+                if dataset== 'lumbar':
+                    targets = targets.unsqueeze(-1)
                 optimizer_net.zero_grad()
                 mu, logvar, _ = model(data, dropout=False)
                 if torch.isnan(mu).any().item():
@@ -265,7 +267,7 @@ def train(base_model= 'densenet201',
             mu_train = torch.cat(mu_train, dim=0)
             logvar_train = torch.cat(logvar_train, dim=0)
             # mse_train = metric(mu_train, targets_train)
-            mse_train = metric(mu_train, targets_train.unsqueeze(-1))
+            mse_train = metric(mu_train, targets_train)
 
 
             model.eval()
@@ -277,6 +279,8 @@ def train(base_model= 'densenet201',
             with torch.no_grad():
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
+                    if dataset== 'lumbar':
+                        targets = targets.unsqueeze(-1)
                     mu, logvar, _ = model(data, dropout=False)
                     loss = nll_criterion(mu, logvar, targets).to(device)
                     epoch_valid_loss.append(loss.item())
