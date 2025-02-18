@@ -138,7 +138,7 @@ class AggregatedDataset(Dataset):
 
 def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'boneage',
+          dataset = 'lumbar',
          dist_model_name = 'resnet50',
           batch_size=32,
           init_lr=0.001,
