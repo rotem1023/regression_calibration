@@ -235,12 +235,14 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     dataset = 'lumbar'
     loss = 'gaussian'
+    pred_x = False
+    pred_y = False
     one_output = False
     load_results = False
     scale_factor = 1.0
@@ -248,6 +250,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     iters = 20
     level = 1
     alpha = 0.05
+
+    
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
@@ -259,10 +263,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     results_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results_new/predictions'
     if not load_results:
         if dataset == 'lumbar':
-            model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss)
-            dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss)
-            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False)
-            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False)
+            model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss, pred_x=pred_x, pred_y=pred_x)
+            dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x)
+            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x)
+            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x)
         elif dataset == 'boneage':
             resize_to = (256, 256)
             data_set_valid_original = BoneAgeDataset(group='valid', augment=False, resize_to=resize_to)
@@ -452,8 +456,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     # Define the output file path
     resutls_dir_path = get_dir_results(one_output=one_output)
-    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}_after.txt"
-
+    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}{'_x' if pred_x else ''}{'_y' if pred_y else ''}_after.txt"
+    
     # Open the file in append mode
     with open(f'{resutls_dir_path}/{output_file}', "w") as f:
         # Print and save CP metrics
