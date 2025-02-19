@@ -235,7 +235,7 @@ def train(base_model= 'efficientnetb4',
                     targets = targets.unsqueeze(-1)
                 
                 optimizer_net.zero_grad()
-                mu, logvar, _ = model(data, dropout=False)
+                mu, logvar, _ = model(data, dropout=True)
                 if torch.isnan(mu).any().item():
                     print("None in mu, epoch:", e)
                     continue
@@ -279,7 +279,7 @@ def train(base_model= 'efficientnetb4',
                     data, targets = data.to(device), targets.to(device)
                     if dataset== 'lumbar':
                         targets = targets.unsqueeze(-1)
-                    mu, logvar, _ = model(data, dropout=False)
+                    mu, logvar, _ = model(data, dropout=True)
                     loss = nll_criterion(mu, logvar, targets).to(device)
                     epoch_valid_loss.append(loss.item())
 

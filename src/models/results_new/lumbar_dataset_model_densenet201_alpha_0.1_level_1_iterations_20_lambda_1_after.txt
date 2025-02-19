@@ -1,13 +1,13 @@
-q CP mean: 7.424090480804443, q CP std: 0.07243093588262879
-avg_len CP mean: inf, avg_len CP std: nan
-avg_cov CP mean: 0.8966209113597869, avg_cov CP std: 0.011758242615561985
-q GC mean: 3.0914981268033386, q GC std: 0.017997166046422836
-avg_len GC mean: inf, avg_len GC std: nan
-avg_cov GC mean: 0.4764519527554512, avg_cov GC std: 0.0072137593329614415
-q new addtive mean: 0.0769245333969593, q new addtive std: 0.0011303650226247085
-avg_len new addtive mean: 0.24957552775740624, avg_len new addtive std: 0.002503649534266116
-avg_cov new addtive mean: 0.9002639889717102, avg_cov new addtive std: 0.00851158132304086
-q new div mean: 162.40468368530273, q new div std: 4.80897306892253
-avg_len new div mean: 15.547112607955933, avg_len new div std: 0.49466280481208036
-avg_cov new div mean: 0.9047254472970963, avg_cov new div std: 0.008408509056269945
+q CP mean: 1.3530130326747893, q CP std: 0.012329205552700227
+avg_len CP mean: 0.17918529957532883, avg_len CP std: 0.0016419849810063835
+avg_cov CP mean: 0.9005543857812881, avg_cov CP std: 0.008674424982955273
+q GC mean: 1.4021638454970717, q GC std: 0.00782422915995922
+avg_len GC mean: 0.1856944777071476, avg_len GC std: 0.0010379924785445152
+avg_cov GC mean: 0.9179778218269348, avg_cov GC std: 0.005562049498411289
+q new addtive mean: 0.034771404787898065, q new addtive std: 0.0007109988497948359
+avg_len new addtive mean: 0.11931357197463513, avg_len new addtive std: 0.001431579815889577
+avg_cov new addtive mean: 0.8981256574392319, avg_cov new addtive std: 0.010049174838869327
+q new div mean: 2.168872904777527, q new div std: 0.04193728428289033
+avg_len new div mean: 0.1079509485512972, avg_len new div std: 0.002446548111436373
+avg_cov new div mean: 0.8996832072734833, avg_cov new div std: 0.007953941700043089
 lumbar, densenet201, 0.1, 1
