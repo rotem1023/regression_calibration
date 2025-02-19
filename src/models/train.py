@@ -34,8 +34,8 @@ def train(base_model= 'efficientnetb4',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=3,
-          level=1):
+          gpu=1,
+          level=3):
     print("Current PID:", os.getpid())
 
 
@@ -319,7 +319,7 @@ def train(base_model= 'efficientnetb4',
 
             if is_best:
                 os.makedirs('./snapshots', exist_ok=True)
-                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best.pth.tar"
+                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best_just_try.pth.tar"
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,

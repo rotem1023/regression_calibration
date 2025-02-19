@@ -7,6 +7,17 @@ from models import DistancePredictor, BreastPathQModel
 from data_generator_boneage import BoneAgeDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
+import random
+import numpy as np
+
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)  # If using multiple GPUs
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 
 # 'resnet101', 'densenet201', 'efficientnetb4'
 dataset_name = 'lumbar_L5'

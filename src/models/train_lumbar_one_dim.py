@@ -36,7 +36,7 @@ def save_current_snapshot(base_model, likelihood, dataset, e, model, save_x, sav
     }, filename)
     print(f"Saved file: {filename}")
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           batch_size=32,
@@ -46,9 +46,9 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          pred_x = True,
-          pred_y = False,
-          gpu=1,
+          pred_x = False,
+          pred_y = True,
+          gpu=2,
           level=1):
     print("Current PID:", os.getpid())
 
@@ -266,7 +266,6 @@ def train(base_model= 'densenet201',
             targets_train = torch.cat(targets_train, dim=0)
             mu_train = torch.cat(mu_train, dim=0)
             logvar_train = torch.cat(logvar_train, dim=0)
-            # mse_train = metric(mu_train, targets_train)
             mse_train = metric(mu_train, targets_train)
 
 
