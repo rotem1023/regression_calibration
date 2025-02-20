@@ -81,7 +81,7 @@ def aggregate_results(base_dataset, model, device, dataset):
     model.eval()
     model.to(device)
 
-    data_list, mu_list, target_list = [], [], []
+    data_list, mu_list, sd_list, target_list = [], [], [], []
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(tqdm(base_dataset, desc="Aggregating results")):
             # Move data to the appropriate device
@@ -92,18 +92,19 @@ def aggregate_results(base_dataset, model, device, dataset):
             # Compute `mu`
             
             # my version
-            # mu, _, _ = model(data)  # Assuming model returns (mu, logvar, _)
+            mu, logvar, _ = model(data)  # Assuming model returns (mu, logvar, _)
             # lior version
-            mu, _, _ = model(data, dropout=True, mc_dropout=True, test=True)
-            mu = mu.clamp(0, 1).permute(1,0,2)
-            mu = mu.mean(dim=1)
-            if dataset =='oct':
-                mu = torch.mean(mu, dim = 1, keepdim=True)
-                target = torch.mean(target, dim=1, keepdim=True)
+            # mu, _, _ = model(data, dropout=True, mc_dropout=True, test=True)
+            # mu = mu.clamp(0, 1).permute(1,0,2)
+            # mu = mu.mean(dim=1)
+            # if dataset =='oct':
+            #     mu = torch.mean(mu, dim = 1, keepdim=True)
+            #     target = torch.mean(target, dim=1, keepdim=True)
 
             # Store results
             data_list.append(data.cpu())
             mu_list.append(mu.cpu())
+            sd_list.append(logvar.cpu().exp().sqrt())
             target_list.append(target.cpu())
 
 
@@ -113,10 +114,11 @@ def aggregate_results(base_dataset, model, device, dataset):
     data_tensor = torch.cat(data_list, dim=0)
     mu_tensor = torch.cat(mu_list, dim=0).squeeze(0)
     target_tensor = torch.cat(target_list, dim=0).unsqueeze(-1)
+    sd_tensor = torch.cat(sd_list, dim=0).squeeze(0)
     if dataset =='oct':
         target_tensor = target_tensor.squeeze(-1)
 
-    return data_tensor, mu_tensor, target_tensor
+    return data_tensor, mu_tensor, sd_tensor, target_tensor
 
 class AggregatedDataset(Dataset):
     def __init__(self, data_tensor, mu_tensor, target_tensor):
@@ -158,7 +160,7 @@ class CustomMSELoss(nn.Module):
                 
         return total_loss
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           dist_model_name = 'resnet50',
@@ -171,8 +173,8 @@ def train(base_model= 'efficientnetb4',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          gpu=0,
-          level=5):
+          gpu=3,
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -259,8 +261,8 @@ def train(base_model= 'efficientnetb4',
     batch_counter_valid = 0
 
     
-    data_tensor_train, mu_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, dataset=dataset)
-    data_tensor_valid, mu_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset=dataset)
+    data_tensor_train, mu_tensor_train, sd_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, dataset=dataset)
+    data_tensor_valid, mu_tensor_valid, sd_tensor_train, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset=dataset)
     aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, target_tensor_train)
     aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, target_tensor_valid)
     
