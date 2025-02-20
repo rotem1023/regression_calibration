@@ -4,10 +4,10 @@ avg_cov CP mean: 0.9015466570854187, avg_cov CP std: 0.008216816126080422
 q GC mean: 1.3877931034235655, q GC std: 0.009517603398863534
 avg_len GC mean: 0.0608924126252532, avg_len GC std: 0.00045693450692113754
 avg_cov GC mean: 0.9168864160776138, avg_cov GC std: 0.005549871829623311
-q new addtive mean: 0.023986926767975092, q new addtive std: 0.0003212018761778007
-avg_len new addtive mean: 0.06047518495470285, avg_len new addtive std: 0.0006346633492284158
-avg_cov new addtive mean: 0.9012677431106567, avg_cov new addtive std: 0.008887534933410567
-q new div mean: 6.146684145927429, q new div std: 0.19151124084241208
-avg_len new div mean: 0.07685215622186661, avg_len new div std: 0.0028207429303603137
-avg_cov new div mean: 0.8993661284446717, avg_cov new div std: 0.009944536737249786
+q new addtive mean: 0.02451659720391035, q new addtive std: 0.00029686852759345145
+avg_len new addtive mean: 0.06154797300696373, avg_len new addtive std: 0.0005779739021363339
+avg_cov new addtive mean: 0.9006338655948639, avg_cov new addtive std: 0.009418921782940595
+q new div mean: 4.846799516677857, q new div std: 0.06733956924455567
+avg_len new div mean: 0.06065833792090416, avg_len new div std: 0.0010645520189192486
+avg_cov new div mean: 0.8987068980932236, avg_cov new div std: 0.008145023248539746
 lumbar, efficientnetb4, 0.1, 3

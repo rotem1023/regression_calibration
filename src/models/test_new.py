@@ -241,7 +241,7 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
@@ -328,12 +328,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         negative_dist_test_original
     ]
     
-    print_first_10_elements(
-    y_p_calib_original=y_p_calib_original,
-    vars_calib_original=vars_calib_original,
-    logvars_calib_original=logvars_calib_original,
-    targets_calib_original=targets_calib_original
-    )
+    # print_first_10_elements(
+    # y_p_calib_original=y_p_calib_original,
+    # vars_calib_original=vars_calib_original,
+    # logvars_calib_original=logvars_calib_original,
+    # targets_calib_original=targets_calib_original
+    # )
 
     q_all = []
     avg_len_all = []

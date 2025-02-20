@@ -107,6 +107,8 @@ def aggregate_results(base_dataset, model, device, dataset):
             mu_list.append(mu.cpu())
             sd_list.append(logvar.cpu().exp().sqrt())
             target_list.append(target.cpu())
+            if batch_idx > 0:
+                break
 
 
         
@@ -138,7 +140,7 @@ class AggregatedDataset(Dataset):
         return self.data_tensor.size(0)
 
     def __getitem__(self, idx):
-        return self.data_tensor[idx], self.mu_tensor[idx], self.sd_tensor, self.target_tensor[idx]
+        return self.data_tensor[idx], self.mu_tensor[idx], self.sd_tensor[idx], self.target_tensor[idx]
 
 
 
@@ -175,9 +177,9 @@ def train(base_model= 'efficientnetb4',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          normalize = False,
+          normalize = True,
           gpu=2,
-          level=2):
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -295,8 +297,8 @@ def train(base_model= 'efficientnetb4',
                 # Forward pass for distance model
                 predicted_distances = dist_model(data)
                 if normalize:
-                    true_d_plus = torch.clamp(targets - mu/sd, min=0) * scale_factor # True d+
-                    true_d_minus = torch.clamp(mu - targets/sd, min=0) * scale_factor # True d-
+                    true_d_plus = torch.clamp((targets - mu)/sd, min=0) * scale_factor # True d+
+                    true_d_minus = torch.clamp((mu - targets)/sd, min=0) * scale_factor # True d-
                 else:
                     true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
                     true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
@@ -349,13 +351,13 @@ def train(base_model= 'efficientnetb4',
                     predicted_distances = dist_model(data) # Predict d+ and d-
                     # print("Predicted distances:", predicted_distances[:1])
                     if normalize:
-                        true_d_plus = torch.clamp(targets - mu/sd, min=0) * scale_factor # True d+
-                        true_d_minus = torch.clamp(mu - targets/sd, min=0) * scale_factor # True d-
+                        true_d_plus = torch.clamp((targets - mu)/sd, min=0) * scale_factor # True d+
+                        true_d_minus = torch.clamp((mu - targets)/sd, min=0) * scale_factor # True d-
                     else:
                         true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
                         true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
-                    # print("true distance:", true_distances[:1])
+                    print("true distance:", true_distances[:1])
 
                     dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
                     dist_valid_loss.append(dist_loss.item())
