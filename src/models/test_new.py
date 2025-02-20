@@ -223,7 +223,8 @@ def get_dir_results(one_output = False):
     os.makedirs(resutls_dir_path, exist_ok=True)
     return resutls_dir_path
     
-
+def normalize_dist(dist, logvar):
+    return dist * logvar.exp().sqrt()
 
 
 def main():
@@ -237,7 +238,7 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
@@ -247,6 +248,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_y = False
     one_output = False
     load_results = False
+    normalize = False
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
@@ -297,6 +299,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         vars_calib_original = logvars_calib_original.exp()
         targets_test_original, y_p_test_original, logvars_test_original, positive_dist_test_original, negative_dist_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
         vars_test_original = logvars_test_original.exp()
+    
+    if normalize:
+        positive_dist_calib_original = normalize_dist(positive_dist_calib_original, logvars_calib_original)
+        positive_dist_test_original = normalize_dist(positive_dist_test_original, logvars_test_original)
+        negative_dist_calib_original = normalize_dist(negative_dist_calib_original, logvars_calib_original)
+        negative_dist_test_original = normalize_dist(negative_dist_test_original, logvars_test_original)
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
@@ -458,7 +466,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     # Define the output file path
     resutls_dir_path = get_dir_results(one_output=one_output)
-    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}{'_x' if pred_x else ''}{'_y' if pred_y else ''}_after.txt"
+    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_lambda_{lambda_param}{'_x' if pred_x else ''}{'_y' if pred_y else ''}{'_normalize' if normalize else ''}_after.txt"
     
     # Open the file in append mode
     with open(f'{resutls_dir_path}/{output_file}', "w") as f:

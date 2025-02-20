@@ -25,8 +25,9 @@ import load_trained_models
 from torch.utils.data import Dataset, DataLoader
 
 
-def save_snapshot(save_dir, model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, is_best = False):
-    suffix = 'best' if is_best else 'new'
+def save_snapshot(save_dir, model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, is_best = False, is_mornalize =False):
+    suffix = 'normalize' if is_mornalize else ''
+    suffix = suffix + 'best' if is_best else 'new'
     
     os.makedirs(save_dir, exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
@@ -121,7 +122,7 @@ def aggregate_results(base_dataset, model, device, dataset):
     return data_tensor, mu_tensor, sd_tensor, target_tensor
 
 class AggregatedDataset(Dataset):
-    def __init__(self, data_tensor, mu_tensor, target_tensor):
+    def __init__(self, data_tensor, mu_tensor, sd_tensor, target_tensor):
         """
         Args:
             data_tensor (torch.Tensor): Tensor containing data samples.
@@ -130,13 +131,14 @@ class AggregatedDataset(Dataset):
         """
         self.data_tensor = data_tensor
         self.mu_tensor = mu_tensor
+        self.sd_tensor = sd_tensor
         self.target_tensor = target_tensor
 
     def __len__(self):
         return self.data_tensor.size(0)
 
     def __getitem__(self, idx):
-        return self.data_tensor[idx], self.mu_tensor[idx], self.target_tensor[idx]
+        return self.data_tensor[idx], self.mu_tensor[idx], self.sd_tensor, self.target_tensor[idx]
 
 
 
@@ -173,6 +175,7 @@ def train(base_model= 'densenet201',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
+          normalize = False,
           gpu=3,
           level=1):
     print("Current PID:", os.getpid())
@@ -262,9 +265,9 @@ def train(base_model= 'densenet201',
 
     
     data_tensor_train, mu_tensor_train, sd_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, dataset=dataset)
-    data_tensor_valid, mu_tensor_valid, sd_tensor_train, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset=dataset)
-    aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, target_tensor_train)
-    aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, target_tensor_valid)
+    data_tensor_valid, mu_tensor_valid, sd_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset=dataset)
+    aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, sd_tensor_train, target_tensor_train)
+    aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, sd_tensor_valid, target_tensor_valid)
     
     train_loader = DataLoader(aggregated_dataset_train, batch_size=batch_size, shuffle=True)
     valid_loader = DataLoader(aggregated_dataset_valid, batch_size=batch_size, shuffle=True)
@@ -279,8 +282,8 @@ def train(base_model= 'densenet201',
             dist_train_loss = []
             is_best = False
 
-            for batch_idx, (data, mu,targets) in enumerate(tqdm(train_loader)):
-                data, mu, targets = data.to(device), mu.to(device), targets.to(device)
+            for batch_idx, (data, mu, sd,targets) in enumerate(tqdm(train_loader)):
+                data, mu, sd, targets = data.to(device), mu.to(device), sd.to(device), targets.to(device)
                 
                 if dataset =='boneage':
                     # data = data.repeat(1, 3, 1, 1)
@@ -291,8 +294,12 @@ def train(base_model= 'densenet201',
 
                 # Forward pass for distance model
                 predicted_distances = dist_model(data)
-                true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
-                true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
+                if normalize:
+                    true_d_plus = torch.clamp(targets - mu/sd, min=0) * scale_factor # True d+
+                    true_d_minus = torch.clamp(mu - targets/sd, min=0) * scale_factor # True d-
+                else:
+                    true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
+                    true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                 true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
 
                 # Compute loss for distance model
@@ -328,8 +335,8 @@ def train(base_model= 'densenet201',
             targets_valid = []
 
             with torch.no_grad():
-                for batch_idx, (data, mu, targets) in enumerate(tqdm(valid_loader)):
-                    data, mu,  targets = data.to(device), mu.to(device), targets.to(device)
+                for batch_idx, (data, mu, sd, targets) in enumerate(tqdm(valid_loader)):
+                    data, mu, sd,  targets = data.to(device), mu.to(device), sd.to(device), targets.to(device)
 
                     if dataset =='boneage':
                         # data = data.repeat(1, 3, 1, 1)
@@ -341,8 +348,12 @@ def train(base_model= 'densenet201',
                     # -------- Evaluate Distance Model --------
                     predicted_distances = dist_model(data) # Predict d+ and d-
                     # print("Predicted distances:", predicted_distances[:1])
-                    true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
-                    true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
+                    if normalize:
+                        true_d_plus = torch.clamp(targets - mu/sd, min=0) * scale_factor # True d+
+                        true_d_minus = torch.clamp(mu - targets/sd, min=0) * scale_factor # True d-
+                    else:
+                        true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
+                        true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
                     # print("true distance:", true_distances[:1])
 
@@ -373,9 +384,9 @@ def train(base_model= 'densenet201',
             #     save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, scale_factor=scale_factor, is_best=True)
 
 
-            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor)
+            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor, is_mornalize=normalize)
     except KeyboardInterrupt:
-            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor)
+            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor, is_mornalize=normalize)
             
             
 if __name__ == '__main__':
