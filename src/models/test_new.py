@@ -243,7 +243,7 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
@@ -257,7 +257,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 5
+    level = 3
     alpha = 0.05
 
     
