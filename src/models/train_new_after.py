@@ -26,8 +26,8 @@ from torch.utils.data import Dataset, DataLoader
 
 
 def save_snapshot(save_dir, model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, is_best = False, is_mornalize =False):
-    suffix = 'normalize' if is_mornalize else ''
-    suffix = suffix + 'best' if is_best else 'new'
+    suffix = 'normalize_' if is_mornalize else ''
+    suffix = suffix + ('best' if is_best else 'new')
     
     os.makedirs(save_dir, exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
@@ -107,8 +107,7 @@ def aggregate_results(base_dataset, model, device, dataset):
             mu_list.append(mu.cpu())
             sd_list.append(logvar.cpu().exp().sqrt())
             target_list.append(target.cpu())
-            if batch_idx > 0:
-                break
+
 
 
         
@@ -178,7 +177,7 @@ def train(base_model= 'efficientnetb4',
           lambda_param=1.0,
           scale_factor = 1,
           normalize = True,
-          gpu=2,
+          gpu=3,
           level=1):
     print("Current PID:", os.getpid())
 
@@ -197,6 +196,7 @@ def train(base_model= 'efficientnetb4',
     print("epochs =", epochs)
     print("augment =", augment)
     print("valid_size =", valid_size)
+    print("normalize", normalize)
     print("lr_patience =", lr_patience)
     print("weight_decay =", weight_decay)
     print("lambda param = ", lambda_param)

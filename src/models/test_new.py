@@ -255,8 +255,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 2
-    alpha = 0.1
+    level = 3
+    alpha = 0.05
 
     
     
