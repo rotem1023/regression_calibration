@@ -59,13 +59,6 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 # CP/GC prediction
 
 
-def avg_cov_tmp(mu, uncert, target):
-    total_cov = 0.0
-    for mu_single, uncert_single, target_single in zip(mu, uncert, target):
-        if mu_single - uncert_single <= target_single <= mu_single + uncert_single:
-            total_cov += 1.0
-            
-    return total_cov / len(mu)
 
 def calc_stats(q, target, mu, sd):
     lower = mu - q * sd
@@ -74,7 +67,6 @@ def calc_stats(q, target, mu, sd):
     upper = torch.clamp(upper, min=0, max=1)  
     length = torch.mean(abs(upper - lower))
     coverage = avg_cov(lower, upper, target)
-    cov_tmp = avg_cov_tmp(mu, q * sd, target)
     return length, coverage
 
 def avg_cov(lower, upper, target):
@@ -144,7 +136,12 @@ def shuffle_arrays(calib_arrays, test_arrays):
    
     
     
-
+def print_first_10_elements(**arrays):
+    for name, array in arrays.items():
+        print(f"{name}: {array[:10]}")
+        
+        
+        
 def main():
     print("Current PID:", os.getpid())
     mix_indices = True
@@ -161,7 +158,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     iters = 20
-    level = 1
+    level = 3
     alpha = 0.05
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
@@ -190,6 +187,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
     y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
     
+    print_first_10_elements(
+    y_p_calib_original=y_p_calib_original,
+    vars_calib_original=vars_calib_original,
+    logvars_calib_original=logvars_calib_original,
+    targets_calib_original=targets_calib_original
+    )
     
     # save test arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"

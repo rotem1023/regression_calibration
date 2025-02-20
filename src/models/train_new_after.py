@@ -177,7 +177,7 @@ def train(base_model= 'densenet201',
           scale_factor = 1,
           normalize = False,
           gpu=3,
-          level=1):
+          level=2):
     print("Current PID:", os.getpid())
 
 

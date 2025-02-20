@@ -226,7 +226,10 @@ def get_dir_results(one_output = False):
 def normalize_dist(dist, logvar):
     return dist * logvar.exp().sqrt()
 
-
+def print_first_10_elements(**arrays):
+    for name, array in arrays.items():
+        print(f"{name}: {array[:10]}")
+        
 def main():
     print("Current PID:", os.getpid())
     mix_indices = True
@@ -252,7 +255,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 1
+    level = 2
     alpha = 0.05
 
     
@@ -269,8 +272,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         if dataset == 'lumbar':
             model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss, pred_x=pred_x, pred_y=pred_x)
             dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x)
-            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x)
-            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x)
+            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
+            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
         elif dataset == 'boneage':
             resize_to = (256, 256)
             data_set_valid_original = BoneAgeDataset(group='valid', augment=False, resize_to=resize_to)
@@ -324,6 +327,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         positive_dist_test_original, 
         negative_dist_test_original
     ]
+    
+    print_first_10_elements(
+    y_p_calib_original=y_p_calib_original,
+    vars_calib_original=vars_calib_original,
+    logvars_calib_original=logvars_calib_original,
+    targets_calib_original=targets_calib_original
+    )
 
     q_all = []
     avg_len_all = []
