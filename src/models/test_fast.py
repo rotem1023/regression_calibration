@@ -58,6 +58,15 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 
 # CP/GC prediction
 
+
+def avg_cov_tmp(mu, uncert, target):
+    total_cov = 0.0
+    for mu_single, uncert_single, target_single in zip(mu, uncert, target):
+        if mu_single - uncert_single <= target_single <= mu_single + uncert_single:
+            total_cov += 1.0
+            
+    return total_cov / len(mu)
+
 def calc_stats(q, target, mu, sd):
     lower = mu - q * sd
     upper = mu + q * sd
@@ -65,6 +74,7 @@ def calc_stats(q, target, mu, sd):
     upper = torch.clamp(upper, min=0, max=1)  
     length = torch.mean(abs(upper - lower))
     coverage = avg_cov(lower, upper, target)
+    cov_tmp = avg_cov_tmp(mu, q * sd, target)
     return length, coverage
 
 def avg_cov(lower, upper, target):
@@ -146,23 +156,23 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     iters = 20
     level = 2
-    alpha = 0.1
+    alpha = 0.05
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
-    model = BreastPathQModel(base_model, out_channels=1).to(device)
+    # model = BreastPathQModel(base_model, out_channels=1).to(device)
 
-    checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best_just_try.pth.tar', map_location=device)
-    model.load_state_dict(checkpoint['state_dict'])
-    model.eval()
-    print(f"epoch: {checkpoint['epoch']}")
-    load_trained_models.get_model_lumbar(base_model, level, None, device, loss='gaussian', pred_x=False, pred_y=False)
+    # checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best_just_try.pth.tar', map_location=device)
+    # model.load_state_dict(checkpoint['state_dict'])
+    # model.eval()
+    # print(f"epoch: {checkpoint['epoch']}")
+    model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss='gaussian', pred_x=False, pred_y=False)
     batch_size = 64
 
 
