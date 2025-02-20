@@ -19,7 +19,19 @@ from models import BreastPathQModel, DistancePredictor
 from glob import glob
 import statistics
 import math
+import numpy as np
+import torch
+import random
 
+
+
+seed = 42
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)  # If using multiple GPUs
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
     
     
@@ -136,19 +148,16 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     iters = 20
-    level = 1
-    alpha = 0.05
+    level = 2
+    alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
     model = BreastPathQModel(base_model, out_channels=1).to(device)
 
-    # TODO: load checkpoint 
-    # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    
-    checkpoint = torch.load(f'{models_dir}/old/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
+    checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best_just_try.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
+    model.eval()
     print(f"epoch: {checkpoint['epoch']}")
     
     batch_size = 64
@@ -167,6 +176,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
     y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
+    
+    logvar_calib = logvars_calib_original.mean(dim=1).unsqueeze(1)
+    var_calib  = logvar_calib.exp()
+    sd_calib = var_calib.sqrt()
+    # sd_calib_original = vars_calib_original.sqrt()
+    q_tmp = calc_optimal_q(target_calib=targets_calib_original.unsqueeze(-1), mu_calib=y_p_calib_original, sd_calib=sd_calib, alpha=alpha)
+
     
     # save test arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"

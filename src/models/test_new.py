@@ -224,6 +224,8 @@ def get_dir_results(one_output = False):
     return resutls_dir_path
     
 
+
+
 def main():
     print("Current PID:", os.getpid())
     mix_indices = True
@@ -238,7 +240,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model = 'efficientnetb4'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:2")
     dataset = 'lumbar'
     loss = 'gaussian'
     pred_x = False
@@ -248,7 +250,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 1
+    level = 3
     alpha = 0.1
 
     
@@ -286,8 +288,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
         y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model, device, one_output=one_output, scale_factor= scale_factor)
         y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model, device, one_output=one_output, scale_factor= scale_factor)
-        vars_calib_original = logvars_calib_original.exp()
-        vars_test_original = logvars_test_original.exp()
+        # vars_calib_original = logvars_calib_original.exp()
+        # vars_test_original = logvars_test_original.exp()
         # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_calib_original, mu=y_p_calib_original, logvar=logvars_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original)
         # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_test_original, mu=y_p_test_original, logvar=logvars_test_original, positive_distance=positive_dist_test_original, negative_distance= negative_dist_test_original)
     else:
@@ -295,6 +297,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         vars_calib_original = logvars_calib_original.exp()
         targets_test_original, y_p_test_original, logvars_test_original, positive_dist_test_original, negative_dist_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
         vars_test_original = logvars_test_original.exp()
+    
+    logvar_calib = logvars_calib_original.mean(dim=1).unsqueeze(1)
+    var_calib  = logvar_calib.exp()
+    sd_calib = var_calib.sqrt()
+    # sd_calib_original = vars_calib_original.sqrt()
+    q_tmp = calc_optimal_q(target_calib=targets_calib_original.unsqueeze(-1), mu_calib=y_p_calib_original, sd_calib=sd_calib, alpha=alpha)
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
