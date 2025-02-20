@@ -22,6 +22,7 @@ import math
 import numpy as np
 import torch
 import random
+import load_trained_models
 
 
 
@@ -60,6 +61,8 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 def calc_stats(q, target, mu, sd):
     lower = mu - q * sd
     upper = mu + q * sd
+    lower = torch.clamp(lower, min=0, max=1) 
+    upper = torch.clamp(upper, min=0, max=1)  
     length = torch.mean(abs(upper - lower))
     coverage = avg_cov(lower, upper, target)
     return length, coverage
@@ -159,7 +162,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     model.load_state_dict(checkpoint['state_dict'])
     model.eval()
     print(f"epoch: {checkpoint['epoch']}")
-    
+    load_trained_models.get_model_lumbar(base_model, level, None, device, loss='gaussian', pred_x=False, pred_y=False)
     batch_size = 64
 
 
@@ -177,12 +180,6 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
     y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
     
-    logvar_calib = logvars_calib_original.mean(dim=1).unsqueeze(1)
-    var_calib  = logvar_calib.exp()
-    sd_calib = var_calib.sqrt()
-    # sd_calib_original = vars_calib_original.sqrt()
-    q_tmp = calc_optimal_q(target_calib=targets_calib_original.unsqueeze(-1), mu_calib=y_p_calib_original, sd_calib=sd_calib, alpha=alpha)
-
     
     # save test arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"

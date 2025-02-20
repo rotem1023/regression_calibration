@@ -34,8 +34,8 @@ def train(base_model= 'densenet201',
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=3,
-          level=1):
+          gpu=0,
+          level=5):
     print("Current PID:", os.getpid())
 
 
