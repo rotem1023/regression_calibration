@@ -224,7 +224,7 @@ def get_dir_results(one_output = False):
     return resutls_dir_path
     
 def normalize_dist(dist, logvar):
-    return dist * logvar.exp().sqrt()
+    return dist * logvar.squeeze(-1).exp().sqrt()
 
 def print_first_10_elements(**arrays):
     for name, array in arrays.items():
@@ -241,7 +241,7 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
@@ -256,7 +256,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     lambda_param = 1
     iters = 20
     level = 3
-    alpha = 0.05
+    alpha = 0.1
 
     
     
@@ -271,7 +271,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     if not load_results:
         if dataset == 'lumbar':
             model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss, pred_x=pred_x, pred_y=pred_x)
-            dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x)
+            dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x, normalize=normalize)
             data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
             data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
         elif dataset == 'boneage':

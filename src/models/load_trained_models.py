@@ -17,7 +17,7 @@ torch.cuda.manual_seed_all(seed)  # If using multiple GPUs
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, loss = "gaussian", one_out = False, pred_x = False, pred_y = False):
+def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, loss = "gaussian", one_out = False, pred_x = False, pred_y = False, normalize = False):
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     if base_model != None:  # distance model
         models_dir = f"{models_dir}_new"
@@ -35,7 +35,8 @@ def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, los
                 models_dir = f"{models_dir}/x"
             else:
                 models_dir = f"{models_dir}/y"
-        checkpoint = torch.load(f'{models_dir}/{model_name}_lumbar_L{level}_snapshot_dist_{base_model}{lambda_st}_scale_factor1_new.pth.tar', map_location=device)
+        normal_txt = '_normalize' if normalize else ''
+        checkpoint = torch.load(f'{models_dir}/{model_name}_lumbar_L{level}_snapshot_dist_{base_model}{lambda_st}_scale_factor1{normal_txt}_new.pth.tar', map_location=device)
     else:        
         if loss == "gaussian":
             model = BreastPathQModel(model_name, out_channels=1).to(device) 

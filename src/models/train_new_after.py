@@ -176,9 +176,9 @@ def train(base_model= 'efficientnetb4',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
-          normalize = True,
-          gpu=3,
-          level=1):
+          normalize = False,
+          gpu=2,
+          level=4):
     print("Current PID:", os.getpid())
 
 
@@ -357,7 +357,7 @@ def train(base_model= 'efficientnetb4',
                         true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
                         true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
-                    print("true distance:", true_distances[:1])
+                    # print("true distance:", true_distances[:1])
 
                     dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
                     dist_valid_loss.append(dist_loss.item())
