@@ -38,7 +38,7 @@ def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
     index = int(math.ceil((1 - alpha) * (err.shape[0] + 1))) - 1
     index = min(max(index, 0), err.shape[0] - 1)
     q = err[index]
-    
+    print(f"upper bigger than 1: {torch.sum(y_upper[y_upper > 1]).item()}, lower smaller than 0: {torch.sum(y_lower[y_lower < 0]).item()}")
     return q
 
 
@@ -140,11 +140,11 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:3")
     pred_x = False
-    pred_y = True
+    pred_y = False
     iters = 20
-    level = 1
+    level = 3
     alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
@@ -160,8 +160,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         else:
             models_dir = f"{models_dir}/y"
             output_dir = f"{output_dir}/y"
-    else:
-        raise Exception("predict only x ot y")
+    # else:
+    #     raise Exception("predict only x ot y")
     checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"epoch: {checkpoint['epoch']}")

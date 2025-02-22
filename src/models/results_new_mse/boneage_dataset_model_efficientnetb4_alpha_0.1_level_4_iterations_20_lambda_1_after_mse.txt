@@ -1,7 +1,0 @@
-q new addtive mean: 0.025509834475815295, q new addtive std: 0.0009703525005400859
-avg_len new addtive mean: 0.18716481551527978, avg_len new addtive std: 0.0022341262758557166
-avg_cov new addtive mean: 0.9037875026464463, avg_cov new addtive std: 0.008380459009111222
-q new div mean: 4.110499536991119, q new div std: 0.2377786592287484
-avg_len new div mean: 0.5596206918358803, avg_len new div std: 0.03255859331739351
-avg_cov new div mean: 0.9013000041246414, avg_cov new div std: 0.0093416899446426
-boneage, efficientnetb4, 0.1, 4

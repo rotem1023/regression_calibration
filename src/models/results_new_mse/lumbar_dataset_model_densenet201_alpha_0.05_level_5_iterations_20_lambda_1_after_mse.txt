@@ -1,7 +1,0 @@
-q new addtive mean: 0.05573786105960608, q new addtive std: 0.0011386984959072188
-avg_len new addtive mean: 0.1725527122616768, avg_len new addtive std: 0.0024894061586894925
-avg_cov new addtive mean: 0.9516505867242813, avg_cov new addtive std: 0.005742614122423485
-q new div mean: 3.5950318932533265, q new div std: 0.13425145667160998
-avg_len new div mean: 0.21957594975829126, avg_len new div std: 0.00844340008522419
-avg_cov new div mean: 0.9480193018913269, avg_cov new div std: 0.005634443384220764
-lumbar, densenet201, 0.05, 5

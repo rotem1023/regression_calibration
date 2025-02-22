@@ -63,8 +63,8 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 def calc_stats(q, target, mu, sd):
     lower = mu - q * sd
     upper = mu + q * sd
-    lower = torch.clamp(lower, min=0, max=1) 
-    upper = torch.clamp(upper, min=0, max=1)  
+    # lower = torch.clamp(lower, min=0, max=1) 
+    # upper = torch.clamp(upper, min=0, max=1)  
     length = torch.mean(abs(upper - lower))
     coverage = avg_cov(lower, upper, target)
     return length, coverage
@@ -158,7 +158,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     iters = 20
-    level = 3
+    level = 4
     alpha = 0.05
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
@@ -187,12 +187,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
     y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
     
-    print_first_10_elements(
-    y_p_calib_original=y_p_calib_original,
-    vars_calib_original=vars_calib_original,
-    logvars_calib_original=logvars_calib_original,
-    targets_calib_original=targets_calib_original
-    )
+    # print_first_10_elements(
+    # y_p_calib_original=y_p_calib_original,
+    # vars_calib_original=vars_calib_original,
+    # logvars_calib_original=logvars_calib_original,
+    # targets_calib_original=targets_calib_original
+    # )
     
     # save test arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"
@@ -204,11 +204,6 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
     # np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_test_original.cpu().numpy())
 
-    # print(f"y_p_test: {list(y_p_test_original)}")
-    # print(f"logvars_test: {list(logvars_test_original)}")
-    
-    # print(f"y_p_calib: {list(y_p_calib_original)}")
-    # print(f"logvars_calib: {list(logvars_calib_original)}")
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
@@ -237,8 +232,6 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     avg_len_valid_all_gc = []
     avg_cov_valid_all_gc = []
     
-    
-
 
     for j in range(iters):
         print(f'Iter: {j}')
@@ -263,6 +256,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         sd_calib = var_calib.sqrt()
         target_calib = targets_calib.unsqueeze(1)
 
+        print(f"sd bigger than 1: {torch.sum(vars_calib_original > 1).item()}")
 
 
 

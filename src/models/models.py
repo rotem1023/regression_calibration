@@ -6,6 +6,7 @@ from densenet import densenet121, densenet201
 from utils import leaky_relu1
 import torch.nn as nn
 import torch.optim as optim
+import torch.nn.functional as F
 
 
 class BreastPathQModel(torch.nn.Module):
@@ -232,7 +233,12 @@ class DistancePredictor(nn.Module):
         distances = self.activation(distances)  # Ensure non-negativity
         return distances
 
-    
+
+
+
+
+
+
 class DistancePredictorOneOutput(nn.Module):
     def __init__(self, base_model='resnet50', in_channels = 3):
         super(DistancePredictorOneOutput, self).__init__()

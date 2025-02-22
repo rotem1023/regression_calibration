@@ -24,6 +24,7 @@ import load_trained_models
 import numpy as np
 import torch
 import random
+from scipy.stats import norm
 
 
 
@@ -37,12 +38,16 @@ torch.backends.cudnn.benchmark = False
 
 def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, alpha, addtvie):
     if addtvie:
-        c_min = mu_calib - negative_dist - target_calib
-        c_max =  target_calib - mu_calib - poistive_dist
+        # c_min = mu_calib - negative_dist - target_calib
+        # c_max =  target_calib - mu_calib - poistive_dist
+        c_min = negative_dist - target_calib
+        c_max =  target_calib - poistive_dist
         c = torch.max(c_min, c_max)
     else:
-        c_min  = (mu_calib - target_calib) / negative_dist
-        c_max  = (target_calib - mu_calib) / poistive_dist
+        # c_min  = (mu_calib - target_calib) / negative_dist
+        # c_max  = (target_calib - mu_calib) / poistive_dist
+        c_min = negative_dist/target_calib
+        c_max = target_calib/poistive_dist
         c = torch.max(c_min, c_max)
     c_sorted, _ = torch.sort(c, dim=0)
     q_index = math.ceil((len(c_sorted)) * (1 - alpha))
@@ -50,23 +55,31 @@ def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, 
     return q
 
 def calc_coverage_add(mu, target, poistive_dist, negative_dist, q):
-    y_upper = mu + poistive_dist + q
-    y_lower = mu - negative_dist - q
+    # y_upper = mu + poistive_dist + q
+    # y_lower = mu - negative_dist - q
+    y_upper = poistive_dist + q
+    y_lower = negative_dist - q
     return calc_coverage(y_lower, y_upper, target)
 
 def calc_coverage_div(target, mu, poistive_dist, negative_dist, q):
-    y_upper = mu + poistive_dist * q
-    y_lower = mu - negative_dist * q
+    # y_upper = mu + poistive_dist * q
+    # y_lower = mu - negative_dist * q
+    y_upper = poistive_dist * q
+    y_lower = negative_dist /q
     return calc_coverage(y_lower, y_upper, target)
 
 
 def calc_stats_new_method(target, mu, poistive_dist, negative_dist, q, div = False):
     if div:
-        lower = mu - negative_dist * q
-        upper = mu + poistive_dist * q
+        # lower = mu - negative_dist * q
+        # upper = mu + poistive_dist * q
+        upper = poistive_dist * q
+        lower = negative_dist / q
     else:
-        lower = mu - negative_dist - q
-        upper = mu + poistive_dist + q
+        # lower = mu - negative_dist - q
+        # upper = mu + poistive_dist + q
+        lower = negative_dist - q
+        upper = poistive_dist + q
     length = calc_length(lower, upper)
     coverage = calc_coverage(lower, upper, target)
     return length, coverage
@@ -96,12 +109,14 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
     s_t = torch.abs(target_calib-mu_calib) / sd_calib
     if gc:
         S = (s_t).mean().sqrt()
-        if alpha == 0.1:
-            q = 1.64485 * S.item()
-        elif alpha == 0.05:
-            q = 1.95996 * S.item()
-        else:
-            print("Choose another value of alpha!! (0.1 / 0.05)")
+        multiplier = norm.ppf(1 - alpha)
+        q = multiplier * S.item()
+        # if alpha == 0.1:
+        #     q = 1.64485 * S.item()
+        # elif alpha == 0.05:
+        #     q = 1.95996 * S.item()
+        # else:
+        #     print("Choose another value of alpha!! (0.1 / 0.05)")
     else:
         s_t_sorted, _ = torch.sort(s_t, dim=0)
         q_index = math.ceil((len(s_t_sorted)) * (1 - alpha))
@@ -150,7 +165,10 @@ def load_arrays(results_dir, dataset, base_model, dist_model, loss, group, level
     neg_dist = np.load(f'{saved_dir}/negative_distance.npy')
     return torch.from_numpy(y), torch.from_numpy(mu), torch.from_numpy(logvar), torch.from_numpy(pos_dist), torch.from_numpy(neg_dist)
     
-
+def modify_predicted_distances(predicted_distances, probs):
+    first_dim_results = predicted_distances * probs
+    second_dim_results = predicted_distances * (1 - probs)
+    return torch.stack([first_dim_results, second_dim_results], dim=1).squeeze(-1)
 
 def get_arrays(data_loader, model, dist_model, device, one_output = False, scale_factor= 1.0):
     y_p_s = []
@@ -171,13 +189,14 @@ def get_arrays(data_loader, model, dist_model, device, one_output = False, scale
             targets_s.append(target.detach()) 
                         
             if dist_model is not None:
-                distances = dist_model(data).detach()
+                # distances = dist_model(data).detach()
+                distances = dist_model(data)
                 if one_output:
                     positive_dist_s.append(distances.squeeze(-1))
                     negative_dist_s.append(distances.squeeze(-1))
                 else:
-                    positive_dist_s.append(distances[:,0])
-                    negative_dist_s.append(distances[:,1])
+                    positive_dist_s.append(distances[0].squeeze(-1))
+                    negative_dist_s.append(distances[1].squeeze(-1))
 
             
                     
@@ -243,7 +262,7 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
@@ -257,7 +276,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 3
+    level = 2
     alpha = 0.05
 
     
@@ -273,7 +292,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     if not load_results:
         if dataset == 'lumbar':
             model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss, pred_x=pred_x, pred_y=pred_x)
-            dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x, normalize=normalize)
+            # dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x, normalize=normalize)
+            dist_model = BreastPathQModel(base_model, out_channels=1).to(device) 
+            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_scale_factor1_new.pth.tar", map_location=device)
+            dist_model.load_state_dict(checkpoint['state_dict'])
+            
+            
             data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
             data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
         elif dataset == 'boneage':
@@ -330,12 +354,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         negative_dist_test_original
     ]
     
-    # print_first_10_elements(
-    # y_p_calib_original=y_p_calib_original,
-    # vars_calib_original=vars_calib_original,
-    # logvars_calib_original=logvars_calib_original,
-    # targets_calib_original=targets_calib_original
-    # )
+    print_first_10_elements(
+    y_p_calib_original=y_p_calib_original,
+    vars_calib_original=vars_calib_original,
+    logvars_calib_original=logvars_calib_original,
+    targets_calib_original=targets_calib_original
+    )
 
     q_all = []
     avg_len_all = []

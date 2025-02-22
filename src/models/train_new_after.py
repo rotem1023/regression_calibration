@@ -110,6 +110,10 @@ def aggregate_results(base_dataset, model, device, dataset):
 
 
 
+
+
+
+
         
 
     # Stack all results into tensors
@@ -150,26 +154,41 @@ class CustomMSELoss(nn.Module):
     
     def forward(self, y_pred, y_true):
         # Calculate the difference between predicted and true values
-        diff = y_pred - y_true
+        left_true = y_true[:, 0]
+        right_true = y_true[:, 1]
+        left_pred = y_pred[:, 0]
+        right_pred = y_pred[:, 1]
         
-        # Penalize predictions smaller than the true values
-        loss_smaller = torch.where(diff < 0, self.lambda_param * torch.square(diff), torch.zeros_like(diff))
-        
-        # Penalize predictions larger than the true values with a regular penalty
-        loss_larger = torch.where(diff > 0, torch.square(diff), torch.zeros_like(diff))
-        
-        # Combine both penalties
-        total_loss = torch.mean(loss_smaller + loss_larger)
-                
+        small_right_pred = torch.where(right_true > right_pred, right_true - right_pred, torch.zeros_like(left_true))
+        small_left_pred = torch.where(left_true < left_pred, left_pred - left_true , torch.zeros_like(left_true))
+        # combine mse loss and cross entropy loss
+        mse_loss = nn.functional.mse_loss(y_pred, y_true)
+        total_loss = mse_loss + torch.mean(small_right_pred * small_right_pred + small_left_pred * small_left_pred)        
         return total_loss
+    
+def modify_predicted_distances(predicted_distances, probs):
+    first_dim_results = (predicted_distances * probs).squeeze(-1)
+    second_dim_results = (predicted_distances * (1 - probs)).squeeze(-1)
+    return torch.stack([first_dim_results, second_dim_results], dim=1)
 
-def train(base_model= 'densenet201',
+
+
+def zero_smaller_pred(predicted_distances, scale_factor):
+    # which distnce is bigger
+    first_dim = predicted_distances[:, 0]
+    second_dim = predicted_distances[:, 1]
+    zero_first_dim = torch.where(first_dim * scale_factor < second_dim , torch.zeros_like(first_dim), first_dim)
+    zero_second_dim = torch.where(second_dim * scale_factor< first_dim , torch.zeros_like(second_dim), second_dim)
+    return torch.stack([zero_first_dim, zero_second_dim], dim=1)
+    
+
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'lumbar',
-          dist_model_name = 'resnet50',
+          dist_model_name = 'efficientnetb4',
           batch_size=32,
           init_lr=0.005,
-          epochs=50,
+          epochs=500,
           augment=True,
           valid_size=300,
           lr_patience=20,
@@ -178,7 +197,7 @@ def train(base_model= 'densenet201',
           scale_factor = 1,
           normalize = False,
           gpu=2,
-          level=3):
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -219,7 +238,9 @@ def train(base_model= 'densenet201',
         data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5, pred_x=pred_x, pred_y=pred_y)
         data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5, pred_x=pred_x, pred_y=pred_y)
         model = load_trained_models.get_model_lumbar(base_model, level, None, device)
-        dist_model = DistancePredictor(dist_model_name).to(device)
+        # dist_model = DistancePredictor(dist_model_name).to(device)
+        dist_model = BreastPathQModel(base_model, in_channels=3, out_channels=1,
+                             pretrained=True).to(device)
         if pred_x or pred_y:
             save_dir =f"{save_dir}/one_dim"
             if pred_x:
@@ -256,8 +277,7 @@ def train(base_model= 'densenet201',
     
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(dist_optimizer, patience=lr_patience, factor=0.1)
 
-    loss_dist = nn.MSELoss()
-
+    loss_dist = CustomMSELoss(lambda_param=lambda_param)
 
     train_losses = []
     valid_losses = []
@@ -295,15 +315,17 @@ def train(base_model= 'densenet201',
                 dist_optimizer.zero_grad()
 
                 # Forward pass for distance model
-                predicted_distances = dist_model(data)
+                predicted_distances = dist_model(data, dropout=True)
                 if normalize:
-                    true_d_plus = torch.clamp((targets - mu)/sd, min=0) * scale_factor # True d+
-                    true_d_minus = torch.clamp((mu - targets)/sd, min=0) * scale_factor # True d-
+                    true_d_plus = torch.clamp((targets - mu)/sd, min=0)
+                    true_d_minus = torch.clamp((mu - targets)/sd, min=0) 
                 else:
-                    true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
-                    true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
+                    true_d_plus = torch.where(targets > mu, targets , mu)
+                    true_d_minus = torch.where(targets > mu, mu, targets)
+                    # true_d_plus = torch.clamp(targets - mu, min=0) 
+                    # true_d_minus = torch.clamp(mu - targets, min=0)
                 true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
-
+                predicted_distances = torch.stack([predicted_distances[0], predicted_distances[1]], dim=1).squeeze(-1)
                 # Compute loss for distance model
                 dist_loss = loss_dist(predicted_distances.float(), true_distances.float())
                 # dist_loss.backward(retain_graph=True)
@@ -348,34 +370,35 @@ def train(base_model= 'densenet201',
 
 
                     # -------- Evaluate Distance Model --------
-                    predicted_distances = dist_model(data) # Predict d+ and d-
-                    # print("Predicted distances:", predicted_distances[:1])
+                    predicted_distances = dist_model(data, dropout=True) # Predict d+ and d-
                     if normalize:
-                        true_d_plus = torch.clamp((targets - mu)/sd, min=0) * scale_factor # True d+
-                        true_d_minus = torch.clamp((mu - targets)/sd, min=0) * scale_factor # True d-
+                        true_d_plus = torch.clamp((targets - mu)/sd, min=0)
+                        true_d_minus = torch.clamp((mu - targets)/sd, min=0) 
                     else:
-                        true_d_plus = torch.clamp(targets - mu, min=0) * scale_factor # True d+
-                        true_d_minus = torch.clamp(mu - targets, min=0) * scale_factor # True d-
+                        true_d_plus = torch.where(targets > mu, targets , mu)
+                        true_d_minus = torch.where(targets > mu, mu, targets)
+                        # true_d_plus = torch.clamp(targets - mu, min=0)
+                        # true_d_minus = torch.clamp(mu - targets, min=0) 
+                    predicted_distances = torch.stack([predicted_distances[0], predicted_distances[1]], dim=1).squeeze(-1)
                     true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
                     # print("true distance:", true_distances[:1])
-
+                    
+                    # print("Predicted distances:", predicted_distances[:1])
                     dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
                     dist_valid_loss.append(dist_loss.item())
                     
-                    epoch_valid_loss.append(loss_dist(predicted_distances.float(), true_distances.float()).item())
 
-                    writer.add_scalar('dist_valid/loss', dist_loss.item(), batch_counter_valid)
+                    # writer.add_scalar('dist_valid/loss', dist_loss.item(), batch_counter_valid)
 
                     batch_counter_valid += 1
                     
 
             # Compute metrics for the epoch
-            epoch_valid_loss = np.mean(epoch_valid_loss)
             epoch_dist_valid_loss = np.mean(dist_valid_loss)
             targets_valid = torch.cat(targets_valid, dim=0)
 
             print(f"Epoch {e}:")
-            print(f"valid: loss: {epoch_valid_loss:.5f}, dist_loss: {epoch_dist_valid_loss:.5f}")
+            print(f"dist_loss: {epoch_dist_valid_loss:.5f}")
 
             # Save epoch losses
             train_losses.append(epoch_train_loss)
