@@ -170,7 +170,7 @@ def modify_predicted_distances(predicted_distances, probs):
     second_dim_results = predicted_distances * (1 - probs)
     return torch.stack([first_dim_results, second_dim_results], dim=1).squeeze(-1)
 
-def get_arrays(data_loader, model, dist_model, device, one_output = False, scale_factor= 1.0):
+def get_arrays(data_loader, model, dist_model_upper, dist_model_lower, device, one_output = False, scale_factor= 1.0):
     y_p_s = []
     vars_s = []
     logvars_s = []
@@ -188,15 +188,16 @@ def get_arrays(data_loader, model, dist_model, device, one_output = False, scale
             logvars_s.append(logvar.detach())
             targets_s.append(target.detach()) 
                         
-            if dist_model is not None:
+            if dist_model_upper is not None:
                 # distances = dist_model(data).detach()
-                distances = dist_model(data)
+                distances_upper = dist_model_upper(data)
+                distance_lower = dist_model_lower(data)
                 if one_output:
-                    positive_dist_s.append(distances.squeeze(-1))
-                    negative_dist_s.append(distances.squeeze(-1))
+                    positive_dist_s.append(distances_upper.squeeze(-1))
+                    negative_dist_s.append(distances_upper.squeeze(-1))
                 else:
-                    positive_dist_s.append(distances[0].squeeze(-1))
-                    negative_dist_s.append(distances[1].squeeze(-1))
+                    positive_dist_s.append(distances_upper[0].squeeze(-1))
+                    negative_dist_s.append(distance_lower[0].squeeze(-1))
 
             
                     
@@ -251,6 +252,18 @@ def print_first_10_elements(**arrays):
     for name, array in arrays.items():
         print(f"{name}: {array[:10]}")
         
+def load_dist_model(base_model, device, level, upper=False):
+    dist_model = BreastPathQModel(base_model, out_channels=1).to(device) 
+    if upper:
+        side= 'upper'
+    else:
+        side = 'lower'
+    checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_scale_factor1_{side}_new.pth.tar", map_location=device)
+    dist_model.load_state_dict(checkpoint['state_dict'])
+    print(f"epoch: {checkpoint['epoch']}")
+    dist_model.eval()
+    return dist_model
+        
 def main():
     print("Current PID:", os.getpid())
     mix_indices = True
@@ -271,12 +284,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_x = False
     pred_y = False
     one_output = False
-    load_results = False
+    load_results = True
     normalize = False
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 2
+    level = 1
     alpha = 0.05
 
     
@@ -293,11 +306,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         if dataset == 'lumbar':
             model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss, pred_x=pred_x, pred_y=pred_x)
             # dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x, normalize=normalize)
-            dist_model = BreastPathQModel(base_model, out_channels=1).to(device) 
-            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_scale_factor1_new.pth.tar", map_location=device)
-            dist_model.load_state_dict(checkpoint['state_dict'])
-            
-            
+            dist_model_upper = load_dist_model(base_model, device, level, upper=True)
+            dist_model_lower = load_dist_model(base_model, device, level, upper=False)            
             data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
             data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
         elif dataset == 'boneage':
@@ -305,7 +315,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             data_set_valid_original = BoneAgeDataset(group='valid', augment=False, resize_to=resize_to)
             data_set_test_original = BoneAgeDataset(group='test', augment=False, resize_to=resize_to)
             model = load_trained_models.get_model_boneage(base_model, None, device, loss=loss)
-            dist_model = load_trained_models.get_model_boneage(base_model_dist, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss)
+            dist_model_upper = load_trained_models.get_model_boneage(base_model_dist, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss)
         else:
             assert False
     
@@ -317,12 +327,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             
         calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
-        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model, device, one_output=one_output, scale_factor= scale_factor)
-        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model, device, one_output=one_output, scale_factor= scale_factor)
-        # vars_calib_original = logvars_calib_original.exp()
-        # vars_test_original = logvars_test_original.exp()
-        # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_calib_original, mu=y_p_calib_original, logvar=logvars_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original)
-        # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_test_original, mu=y_p_test_original, logvar=logvars_test_original, positive_distance=positive_dist_test_original, negative_distance= negative_dist_test_original)
+        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model_upper, dist_model_lower, device, one_output=one_output, scale_factor= scale_factor)
+        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model_upper, dist_model_lower, device, one_output=one_output, scale_factor= scale_factor)
+        vars_calib_original = logvars_calib_original.exp()
+        vars_test_original = logvars_test_original.exp()
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_calib_original, mu=y_p_calib_original, logvar=logvars_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original)
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_test_original, mu=y_p_test_original, logvar=logvars_test_original, positive_distance=positive_dist_test_original, negative_distance= negative_dist_test_original)
     else:
         targets_calib_original, y_p_calib_original,  logvars_calib_original, positive_dist_calib_original, negative_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor)
         vars_calib_original = logvars_calib_original.exp()
@@ -334,6 +344,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         positive_dist_test_original = normalize_dist(positive_dist_test_original, logvars_test_original)
         negative_dist_calib_original = normalize_dist(negative_dist_calib_original, logvars_calib_original)
         negative_dist_test_original = normalize_dist(negative_dist_test_original, logvars_test_original)
+    
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
@@ -360,6 +371,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     logvars_calib_original=logvars_calib_original,
     targets_calib_original=targets_calib_original
     )
+    
 
     q_all = []
     avg_len_all = []

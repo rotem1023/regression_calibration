@@ -25,13 +25,13 @@ import load_trained_models
 from torch.utils.data import Dataset, DataLoader
 
 
-def save_snapshot(save_dir, model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, is_best = False, is_mornalize =False):
+def save_snapshot(save_dir, model_name, dataset_name, epoch, model, dist_base_model_name,lambda_param, scale_factor, bigger,  is_best = False, is_mornalize =False):
     suffix = 'normalize_' if is_mornalize else ''
     suffix = suffix + ('best' if is_best else 'new')
-    
+    side = 'upper' if bigger else 'lower'
     os.makedirs(save_dir, exist_ok=True)
     dist_str = f'dist_{dist_base_model_name}' if dist_base_model_name is not None else ''
-    filename = f"{save_dir}/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_scale_factor{int(scale_factor)}_{suffix}.pth.tar"
+    filename = f"{save_dir}/{model_name}_{dataset_name}_snapshot_{dist_str}_lambda_{int(lambda_param)}_scale_factor{int(scale_factor)}_{side}_{suffix}.pth.tar"
     print(f"Saving snapshot, path: {filename}")
     torch.save({
         'epoch': epoch,
@@ -110,12 +110,7 @@ def aggregate_results(base_dataset, model, device, dataset):
 
 
 
-
-
-
-
         
-
     # Stack all results into tensors
     data_tensor = torch.cat(data_list, dim=0)
     mu_tensor = torch.cat(mu_list, dim=0).squeeze(0)
@@ -148,22 +143,22 @@ class AggregatedDataset(Dataset):
 
 
 class CustomMSELoss(nn.Module):
-    def __init__(self, lambda_param=1.0):
+    def __init__(self, lambda_param=1.0, bigger=False):
         super(CustomMSELoss, self).__init__()
         self.lambda_param = lambda_param
+        self.bigger = bigger
     
     def forward(self, y_pred, y_true):
-        # Calculate the difference between predicted and true values
-        left_true = y_true[:, 0]
-        right_true = y_true[:, 1]
-        left_pred = y_pred[:, 0]
-        right_pred = y_pred[:, 1]
+        if self.bigger:
+            distance= torch.clamp(y_true - y_pred, min=0)
+        else:
+            distance = torch.clamp(y_pred - y_true, min=0)
         
-        small_right_pred = torch.where(right_true > right_pred, right_true - right_pred, torch.zeros_like(left_true))
-        small_left_pred = torch.where(left_true < left_pred, left_pred - left_true , torch.zeros_like(left_true))
+        squared_distance = distance * distance
+
         # combine mse loss and cross entropy loss
         mse_loss = nn.functional.mse_loss(y_pred, y_true)
-        total_loss = mse_loss + torch.mean(small_right_pred * small_right_pred + small_left_pred * small_left_pred)        
+        total_loss = mse_loss + torch.mean(squared_distance) * self.lambda_param       
         return total_loss
     
 def modify_predicted_distances(predicted_distances, probs):
@@ -195,8 +190,9 @@ def train(base_model= 'efficientnetb4',
           weight_decay=1e-8,
           lambda_param=1.0,
           scale_factor = 1,
+          bigger = False,
           normalize = False,
-          gpu=2,
+          gpu=3,
           level=1):
     print("Current PID:", os.getpid())
 
@@ -219,6 +215,8 @@ def train(base_model= 'efficientnetb4',
     print("lr_patience =", lr_patience)
     print("weight_decay =", weight_decay)
     print("lambda param = ", lambda_param)
+    print("bigget = ", bigger)
+    print("scale_factor = ", scale_factor)
     print("device =", device)
     print("level =", level)
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -270,14 +268,14 @@ def train(base_model= 'efficientnetb4',
     print("len(data_set_valid)", len(data_set_valid))
 
     train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size, shuffle=True)
-    valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=False)
 
 
     dist_optimizer = optim.Adam(dist_model.parameters(), lr=init_lr, weight_decay=weight_decay)
     
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(dist_optimizer, patience=lr_patience, factor=0.1)
 
-    loss_dist = CustomMSELoss(lambda_param=lambda_param)
+    loss_dist = CustomMSELoss(lambda_param=lambda_param, bigger=bigger)
 
     train_losses = []
     valid_losses = []
@@ -286,13 +284,13 @@ def train(base_model= 'efficientnetb4',
     batch_counter_valid = 0
 
     
-    data_tensor_train, mu_tensor_train, sd_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, dataset=dataset)
-    data_tensor_valid, mu_tensor_valid, sd_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset=dataset)
-    aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, sd_tensor_train, target_tensor_train)
-    aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, sd_tensor_valid, target_tensor_valid)
+    # data_tensor_train, mu_tensor_train, sd_tensor_train, target_tensor_train = aggregate_results(train_loader, model, device, dataset=dataset)
+    # data_tensor_valid, mu_tensor_valid, sd_tensor_valid, target_tensor_valid = aggregate_results(valid_loader, model, device, dataset=dataset)
+    # aggregated_dataset_train = AggregatedDataset(data_tensor_train, mu_tensor_train, sd_tensor_train, target_tensor_train)
+    # aggregated_dataset_valid = AggregatedDataset(data_tensor_valid, mu_tensor_valid, sd_tensor_valid, target_tensor_valid)
     
-    train_loader = DataLoader(aggregated_dataset_train, batch_size=batch_size, shuffle=True)
-    valid_loader = DataLoader(aggregated_dataset_valid, batch_size=batch_size, shuffle=True)
+    # train_loader = DataLoader(aggregated_dataset_train, batch_size=batch_size, shuffle=True)
+    # valid_loader = DataLoader(aggregated_dataset_valid, batch_size=batch_size, shuffle=True)
 
     
     
@@ -304,8 +302,8 @@ def train(base_model= 'efficientnetb4',
             dist_train_loss = []
             is_best = False
 
-            for batch_idx, (data, mu, sd,targets) in enumerate(tqdm(train_loader)):
-                data, mu, sd, targets = data.to(device), mu.to(device), sd.to(device), targets.to(device)
+            for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
+                data, targets = data.to(device),  targets.to(device)
                 
                 if dataset =='boneage':
                     # data = data.repeat(1, 3, 1, 1)
@@ -316,18 +314,21 @@ def train(base_model= 'efficientnetb4',
 
                 # Forward pass for distance model
                 predicted_distances = dist_model(data, dropout=True)
-                if normalize:
-                    true_d_plus = torch.clamp((targets - mu)/sd, min=0)
-                    true_d_minus = torch.clamp((mu - targets)/sd, min=0) 
-                else:
-                    true_d_plus = torch.where(targets > mu, targets , mu)
-                    true_d_minus = torch.where(targets > mu, mu, targets)
+                # if normalize:
+                #     true_d_plus = torch.clamp((targets - mu)/sd, min=0)
+                #     true_d_minus = torch.clamp((mu - targets)/sd, min=0) 
+                # else:
+                #     true_d_plus = torch.max(targets, mu)
+                #     true_d_minus = torch.min(targets, mu)
                     # true_d_plus = torch.clamp(targets - mu, min=0) 
                     # true_d_minus = torch.clamp(mu - targets, min=0)
-                true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
-                predicted_distances = torch.stack([predicted_distances[0], predicted_distances[1]], dim=1).squeeze(-1)
+                # true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
+                # predicted_distances = torch.stack([predicted_distances[0], predicted_distances[1]], dim=1).squeeze(-1)
                 # Compute loss for distance model
-                dist_loss = loss_dist(predicted_distances.float(), true_distances.float())
+                if bigger:
+                    dist_loss = loss_dist(predicted_distances[0].squeeze(-1).float(), targets.float())
+                else:
+                    dist_loss = loss_dist(predicted_distances[0].squeeze(-1).float(), targets.float())
                 # dist_loss.backward(retain_graph=True)
                 # dist_optimizer.step()
 
@@ -347,7 +348,7 @@ def train(base_model= 'efficientnetb4',
 
             avg_dist_loss = sum(dist_train_loss) / len(dist_train_loss)
             print(f"Epoch {e+1}/{epochs} -  Distance Loss: {avg_dist_loss:.4f}")
-            lr_scheduler_net.step(np.mean(epoch_train_loss))
+            lr_scheduler_net.step(avg_dist_loss)
 
 
 
@@ -359,8 +360,8 @@ def train(base_model= 'efficientnetb4',
             targets_valid = []
 
             with torch.no_grad():
-                for batch_idx, (data, mu, sd, targets) in enumerate(tqdm(valid_loader)):
-                    data, mu, sd,  targets = data.to(device), mu.to(device), sd.to(device), targets.to(device)
+                for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
+                    data,  targets = data.to(device), targets.to(device)
 
                     if dataset =='boneage':
                         # data = data.repeat(1, 3, 1, 1)
@@ -371,20 +372,23 @@ def train(base_model= 'efficientnetb4',
 
                     # -------- Evaluate Distance Model --------
                     predicted_distances = dist_model(data, dropout=True) # Predict d+ and d-
-                    if normalize:
-                        true_d_plus = torch.clamp((targets - mu)/sd, min=0)
-                        true_d_minus = torch.clamp((mu - targets)/sd, min=0) 
-                    else:
-                        true_d_plus = torch.where(targets > mu, targets , mu)
-                        true_d_minus = torch.where(targets > mu, mu, targets)
+                    # if normalize:
+                    #     true_d_plus = torch.clamp((targets - mu)/sd, min=0)
+                    #     true_d_minus = torch.clamp((mu - targets)/sd, min=0) 
+                    # else:
+                    #     true_d_plus = torch.max(targets, mu)
+                    #     true_d_minus = torch.min(targets, mu)
                         # true_d_plus = torch.clamp(targets - mu, min=0)
                         # true_d_minus = torch.clamp(mu - targets, min=0) 
-                    predicted_distances = torch.stack([predicted_distances[0], predicted_distances[1]], dim=1).squeeze(-1)
-                    true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
+                    # predicted_distances = torch.stack([predicted_distances[0], predicted_distances[1]], dim=1).squeeze(-1)
+                    # true_distances = torch.stack([true_d_plus, true_d_minus], dim=1).squeeze(-1)
                     # print("true distance:", true_distances[:1])
                     
                     # print("Predicted distances:", predicted_distances[:1])
-                    dist_loss = nn.functional.mse_loss(predicted_distances.float(), true_distances.float())
+                    if bigger:
+                        dist_loss = loss_dist(predicted_distances[0].squeeze(-1).float(), targets.float())
+                    else:
+                        dist_loss = loss_dist(predicted_distances[0].squeeze(-1).float(), targets.float())
                     dist_valid_loss.append(dist_loss.item())
                     
 
@@ -409,9 +413,9 @@ def train(base_model= 'efficientnetb4',
             #     save_snapshot(dist_model_name, dataset_name, e, dist_model, base_model,lambda_param=lambda_param, scale_factor=scale_factor, is_best=True)
 
 
-            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor, is_mornalize=normalize)
+            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor, is_mornalize=normalize, bigger=bigger)
     except KeyboardInterrupt:
-            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor, is_mornalize=normalize)
+            save_snapshot(save_dir, dist_model_name, dataset_name, e, dist_model, base_model, lambda_param=lambda_param, scale_factor=scale_factor, is_mornalize=normalize, bigger=bigger)
             
             
 if __name__ == '__main__':
