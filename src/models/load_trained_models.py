@@ -1,5 +1,5 @@
 
-from models import BreastPathQModel, BreastPathQModelOneOutput, DistancePredictor, DistancePredictorOneOutput
+from models import BreastPathQModel, BreastPathQModelOneOutput, DistancePredictor, DistancePredictorOneOutput, BreastPathQOldModel
 import torch
 
 
@@ -39,7 +39,7 @@ def get_model_lumbar(model_name, level, base_model, device, lambda_param =5, los
         checkpoint = torch.load(f'{models_dir}/{model_name}_lumbar_L{level}_snapshot_dist_{base_model}{lambda_st}_scale_factor1{normal_txt}_new.pth.tar', map_location=device)
     else:        
         if loss == "gaussian":
-            model = BreastPathQModel(model_name, out_channels=1).to(device) 
+            model = BreastPathQOldModel(model_name, out_channels=1).to(device) 
         elif loss =="mse":
             model = BreastPathQModelOneOutput(model_name, out_channels=1).to(device) 
         else:

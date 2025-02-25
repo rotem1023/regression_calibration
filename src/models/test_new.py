@@ -54,6 +54,16 @@ def calc_opt_q_new_method(target_calib, mu_calib, poistive_dist, negative_dist, 
     q = c_sorted[q_index].item()
     return q
 
+def calc_opt_q_new_method_my_mu(target_calib, mu_calib, poistive_dist, negative_dist, alpha):
+    c_min  = (mu_calib - target_calib) / negative_dist
+    c_max  = (target_calib - mu_calib) / poistive_dist
+    c = torch.max(c_min, c_max)
+    c_sorted, _ = torch.sort(c, dim=0)
+    q_index = math.ceil((len(c_sorted)) * (1 - alpha))
+    q = c_sorted[q_index].item()
+    return q
+
+
 def calc_coverage_add(mu, target, poistive_dist, negative_dist, q):
     # y_upper = mu + poistive_dist + q
     # y_lower = mu - negative_dist - q
@@ -80,6 +90,13 @@ def calc_stats_new_method(target, mu, poistive_dist, negative_dist, q, div = Fal
         # upper = mu + poistive_dist + q
         lower = negative_dist - q
         upper = poistive_dist + q
+    length = calc_length(lower, upper)
+    coverage = calc_coverage(lower, upper, target)
+    return length, coverage
+
+def calc_stats_new_method_my_mu(target, mu, poistive_dist, negative_dist, q):
+    lower = mu - negative_dist * q
+    upper = mu + poistive_dist * q
     length = calc_length(lower, upper)
     coverage = calc_coverage(lower, upper, target)
     return length, coverage
@@ -170,13 +187,14 @@ def modify_predicted_distances(predicted_distances, probs):
     second_dim_results = predicted_distances * (1 - probs)
     return torch.stack([first_dim_results, second_dim_results], dim=1).squeeze(-1)
 
-def get_arrays(data_loader, model, dist_model_upper, dist_model_lower, device, one_output = False, scale_factor= 1.0):
+def get_arrays(data_loader, model, dist_model, device, one_output = False, scale_factor= 1.0):
     y_p_s = []
     vars_s = []
     logvars_s = []
     targets_s = []
     positive_dist_s = []
     negative_dist_s = []
+    my_mu_s = []
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
@@ -188,20 +206,20 @@ def get_arrays(data_loader, model, dist_model_upper, dist_model_lower, device, o
             logvars_s.append(logvar.detach())
             targets_s.append(target.detach()) 
                         
-            if dist_model_upper is not None:
+            if dist_model is not None:
                 # distances = dist_model(data).detach()
-                distances_upper = dist_model_upper(data)
-                distance_lower = dist_model_lower(data)
+                distances = dist_model(data)
                 if one_output:
-                    positive_dist_s.append(distances_upper.squeeze(-1))
-                    negative_dist_s.append(distances_upper.squeeze(-1))
+                    positive_dist_s.append(distances.squeeze(-1))
+                    negative_dist_s.append(distances.squeeze(-1))
                 else:
-                    positive_dist_s.append(distances_upper[0].squeeze(-1))
-                    negative_dist_s.append(distance_lower[0].squeeze(-1))
+                    positive_dist_s.append(distances[0].squeeze(-1))
+                    negative_dist_s.append(distances[1].squeeze(-1))
+                    my_mu_s.append(distances[2].squeeze(-1))
 
             
                     
-    return torch.cat(y_p_s).cpu(), torch.cat(vars_s).cpu(), torch.cat(logvars_s).cpu(), torch.cat(targets_s).cpu(), torch.cat(positive_dist_s).cpu() / float(scale_factor), torch.cat(negative_dist_s).cpu() / float(scale_factor)     
+    return torch.cat(y_p_s).cpu(), torch.cat(vars_s).cpu(), torch.cat(logvars_s).cpu(), torch.cat(targets_s).cpu(), torch.cat(positive_dist_s).cpu() / float(scale_factor), torch.cat(negative_dist_s).cpu() / float(scale_factor)   , torch.cat(my_mu_s).cpu()  
     
 
 
@@ -252,6 +270,21 @@ def print_first_10_elements(**arrays):
     for name, array in arrays.items():
         print(f"{name}: {array[:10]}")
         
+        
+def sort_three_tensors(tensor1, tensor2, tensor3):
+    # Stack tensors along a new dimension
+    stacked = torch.stack([tensor1, tensor2, tensor3], dim=0)
+
+    # Sort along that dimension
+    sorted_values, _ = torch.sort(stacked, dim=0)
+
+    # Extract max, middle, and min tensors
+    min_values = sorted_values[0]  # Smallest values
+    mid_values = sorted_values[1]  # Middle values
+    max_values = sorted_values[2]  # Largest values
+
+    return max_values, mid_values, min_values
+
 def load_dist_model(base_model, device, level, upper=False):
     dist_model = BreastPathQModel(base_model, out_channels=1).to(device) 
     if upper:
@@ -284,7 +317,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_x = False
     pred_y = False
     one_output = False
-    load_results = True
+    load_results = False
     normalize = False
     scale_factor = 1.0
     lambda_param = 1
@@ -306,8 +339,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         if dataset == 'lumbar':
             model = load_trained_models.get_model_lumbar(base_model, level, None, device, loss=loss, pred_x=pred_x, pred_y=pred_x)
             # dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x, normalize=normalize)
-            dist_model_upper = load_dist_model(base_model, device, level, upper=True)
-            dist_model_lower = load_dist_model(base_model, device, level, upper=False)            
+            # dist_model_upper = load_dist_model(base_model, device, level, upper=True)
+            # dist_model_lower = load_dist_model(base_model, device, level, upper=False)        
+            dist_model = BreastPathQModel(base_model, out_channels=1).to(device) 
+            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_scale_factor1_new.pth.tar", map_location=device)
+            dist_model.load_state_dict(checkpoint['state_dict'])
+            print(f"epoch: {checkpoint['epoch']}")
+            dist_model.eval()    
             data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
             data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
         elif dataset == 'boneage':
@@ -327,8 +365,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             
         calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
-        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original = get_arrays(calib_loader, model, dist_model_upper, dist_model_lower, device, one_output=one_output, scale_factor= scale_factor)
-        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original = get_arrays(test_loader, model, dist_model_upper, dist_model_lower, device, one_output=one_output, scale_factor= scale_factor)
+        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, positive_dist_calib_original, negative_dist_calib_original, mu_new_calib_original = get_arrays(calib_loader, model, dist_model, device, one_output=one_output, scale_factor= scale_factor)
+        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, positive_dist_test_original, negative_dist_test_original, mu_new_test_original= get_arrays(test_loader, model, dist_model, device, one_output=one_output, scale_factor= scale_factor)
         vars_calib_original = logvars_calib_original.exp()
         vars_test_original = logvars_test_original.exp()
         save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_calib_original, mu=y_p_calib_original, logvar=logvars_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original)
@@ -345,6 +383,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         negative_dist_calib_original = normalize_dist(negative_dist_calib_original, logvars_calib_original)
         negative_dist_test_original = normalize_dist(negative_dist_test_original, logvars_test_original)
     
+    positive_dist_calib_original,  mu_new_calib_original, negative_dist_calib_original = sort_three_tensors(positive_dist_calib_original, negative_dist_calib_original, mu_new_calib_original)
+    positive_dist_test_original,  mu_new_test_original, negative_dist_test_original = sort_three_tensors(positive_dist_test_original, negative_dist_test_original, mu_new_test_original)
+    
     
     # Calibration and test arrays (from your original code)
     calib_arrays = [
@@ -353,7 +394,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         logvars_calib_original, 
         targets_calib_original, 
         positive_dist_calib_original, 
-        negative_dist_calib_original
+        negative_dist_calib_original,
+        mu_new_calib_original
     ]
 
     test_arrays = [
@@ -362,7 +404,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         logvars_test_original, 
         targets_test_original, 
         positive_dist_test_original, 
-        negative_dist_test_original
+        negative_dist_test_original,
+        mu_new_test_original
+        
     ]
     
     print_first_10_elements(
@@ -397,8 +441,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
         if mix_indices:
             calib_shuffled, test_shuffled = shuffle_arrays(calib_arrays, test_arrays)
-            y_p_calib, vars_calib, logvars_calib, targets_calib, positive_dist_calib, negative_dist_calib = calib_shuffled
-            y_p_test, vars_test, logvars_test, targets_test, positive_dist_test, negative_dist_test = test_shuffled
+            y_p_calib, vars_calib, logvars_calib, targets_calib, positive_dist_calib, negative_dist_calib, mu_new_calib = calib_shuffled
+            y_p_test, vars_test, logvars_test, targets_test, positive_dist_test, negative_dist_test, mu_new_test = test_shuffled
         
                     
         # validation set   
@@ -415,6 +459,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             target_calib = targets_calib.unsqueeze(1)
         positive_dist_calib = positive_dist_calib.unsqueeze(-1)
         negative_dist_calib = negative_dist_calib.unsqueeze(-1)
+        mu_new_calib = mu_new_calib.unsqueeze(-1)
             
         
         # test set
@@ -432,6 +477,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         sd_test = var_test.sqrt()
         positive_dist_test = positive_dist_test.unsqueeze(-1)
         negative_dist_test = negative_dist_test.unsqueeze(-1)
+        mu_new_test = mu_new_test.unsqueeze(-1)
       
         # CP/GC
         target_calib = target_calib.mean(dim=1, keepdim=True)
@@ -504,6 +550,18 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         q_all_gc.append(q_gc)
         avg_len_all_gc.append(test_length_gc)
         avg_cov_all_gc.append(test_coverage_gc)
+        
+        
+        # calc optimal_q for new method
+        positive_dist_calib = positive_dist_calib - mu_new_calib
+        positive_dist_test = positive_dist_test - mu_new_test
+        negative_dist_calib = mu_new_calib - negative_dist_calib
+        negative_dist_test = mu_new_test - negative_dist_test
+        q_mu = calc_opt_q_new_method_my_mu(target_calib, mu_new_calib, positive_dist_calib, negative_dist_calib, alpha)
+        mu_length_calib, mu_coverage_calib = calc_stats_new_method_my_mu(target_calib, mu_new_calib, positive_dist_calib, negative_dist_calib, q_mu)
+        mu_length_test, mu_coverage_test = calc_stats_new_method_my_mu(target_test, mu_new_test, positive_dist_test, negative_dist_test, q_mu)
+        print(f'q_mu: {q_mu}, avg_len_single_new_mu_val: {mu_length_calib}, avg_cov_after_single_new_mu_val: {mu_coverage_calib}')
+        print(f'q_mu: {q_mu}, avg_len_single_new_mu_test: {mu_length_test}, avg_cov_after_single_new_mu_test: {mu_coverage_test}')
         
     print(q_all)
     print(avg_len_all)

@@ -9,7 +9,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 
-class BreastPathQModel(torch.nn.Module):
+class BreastPathQOldModel(torch.nn.Module):
     def __init__(self, base_model, in_channels=3, out_channels=1, dropout_rate=0.2, pretrained=False):
         super().__init__()
 
@@ -119,6 +119,125 @@ class BreastPathQModel(torch.nn.Module):
         else:
             return mu, logvar, muvar
         
+        
+class BreastPathQModel(torch.nn.Module):
+    def __init__(self, base_model, in_channels=3, out_channels=1, dropout_rate=0.2, pretrained=False):
+        super().__init__()
+
+        assert base_model in ['resnet50', 'resnet101', 'densenet121', 'densenet201', 'efficientnetb0', 'efficientnetb4']
+
+        self._in_channels = in_channels
+        self._out_channels = out_channels
+
+        if base_model == 'resnet50':
+            if pretrained:
+                assert in_channels == 3
+                self._base_model = resnet50(pretrained=True, drop_rate=dropout_rate)
+            else:
+                self._base_model = resnet50(pretrained=False, in_channels=in_channels, drop_rate=dropout_rate)
+            fc_in_features = 2048
+        if base_model == 'resnet101':
+            if pretrained:
+                assert in_channels == 3
+                self._base_model = resnet101(pretrained=True, drop_rate=dropout_rate)
+            else:
+                self._base_model = resnet101(pretrained=False, in_channels=in_channels, drop_rate=dropout_rate)
+            fc_in_features = 2048
+        if base_model == 'densenet121':
+            if pretrained:
+                assert in_channels == 3
+                self._base_model = densenet121(pretrained=True, drop_rate=dropout_rate)
+            else:
+                self._base_model = densenet121(pretrained=False, drop_rate=dropout_rate, in_channels=in_channels)
+            fc_in_features = 1024
+        if base_model == 'densenet201':
+            if pretrained:
+                assert in_channels == 3
+                self._base_model = densenet201(pretrained=True, drop_rate=dropout_rate)
+            else:
+                self._base_model = densenet201(pretrained=False, drop_rate=dropout_rate, in_channels=in_channels)
+            fc_in_features = 1920
+        if base_model == 'efficientnetb0':
+            if pretrained:
+                assert in_channels == 3
+                self._base_model = EfficientNet.from_pretrained('efficientnet-b0')
+            else:
+                self._base_model = EfficientNet.from_name('efficientnet-b0', {'in_channels': in_channels})
+            fc_in_features = 1280
+        if base_model == 'efficientnetb4':
+            if pretrained:
+                assert in_channels == 3
+                self._base_model = EfficientNet.from_pretrained('efficientnet-b4')
+            else:
+                self._base_model = EfficientNet.from_name('efficientnet-b4', in_channels= in_channels)
+            fc_in_features = 1792
+
+        self._right_distance_1 = torch.nn.Linear(fc_in_features, fc_in_features)
+        self._right_distance_2 = torch.nn.Linear(fc_in_features, out_channels)
+        self._left_distance_1 = torch.nn.Linear(fc_in_features, fc_in_features)
+        # self._fc_logvar2 = torch.nn.Linear(fc_in_features, out_channels)
+        self._left_distance_2 = torch.nn.Linear(fc_in_features, 1)
+        # self._fc_logvar2 = torch.nn.Linear(fc_in_features, out_channels=2)
+        self.mu_1 = torch.nn.Linear(fc_in_features, fc_in_features)
+        self.mu_2 = torch.nn.Linear(fc_in_features, out_channels)
+
+        if 'resnet' in base_model:
+            self._base_model.fc = torch.nn.Identity()
+        elif 'densenet' in base_model:  # densenet
+            self._base_model.classifier = torch.nn.Identity()
+        elif 'efficientnet' in base_model:
+            self._base_model._fc = torch.nn.Identity()
+
+        self._dropout_T = 25
+        self._dropout_p = 0.5
+
+    def forward(self, input, dropout=True, mc_dropout=False, test=False):
+
+        if mc_dropout:
+            assert dropout
+            T = self._dropout_T
+        else:
+            T = 1
+
+        x = self._base_model(input).relu()
+
+        right_d = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
+        right_d = leaky_relu(self._right_distance_1(right_d))
+        right_d = self._right_distance_2(right_d)
+        right_d_accu = right_d.unsqueeze(0)
+
+        left_d_temp = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
+        left_d_temp = leaky_relu(self._left_distance_1(left_d_temp))
+        left_d_temp = self._left_distance_2(left_d_temp)
+        left_d_accu = left_d_temp.unsqueeze(0)
+        
+        mu_temp = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
+        mu_temp = leaky_relu(self.mu_1(mu_temp))
+        mu_temp = self.mu_2(mu_temp)
+        mu_temp_accu = mu_temp.unsqueeze(0)
+        
+        for i in range(T - 1):
+            x = self._base_model(input).relu()
+
+            right_d = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
+            right_d = leaky_relu(self._right_distance_1(right_d))
+            right_d = self._right_distance_2(right_d)
+            right_d_accu = torch.cat([right_d_accu, right_d.unsqueeze(0)], dim=0)
+
+            left_d_temp = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
+            left_d_temp = leaky_relu(self._left_distance_1(left_d_temp))
+            left_d_temp = self._left_distance_1(left_d_temp)
+            left_d_accu = torch.cat([left_d_accu, left_d_temp.unsqueeze(0)], dim=0)
+
+        right_d = right_d_accu.mean(dim=0)
+        muvar = right_d_accu.var(dim=0)
+        left_d = left_d_accu.mean(dim=0)
+        mu_d = mu_temp_accu.mean(dim=0)
+
+        if test:
+            return right_d_accu.clamp(0, 1), left_d_accu.clamp_max(0), muvar.clamp(0, 1)
+        else:
+            return right_d, left_d, mu_d
         
 
 class BreastPathQModelOneOutput(nn.Module):

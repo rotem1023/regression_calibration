@@ -114,11 +114,11 @@ def plot_sorted_bounds(targets, my_upper, my_lower, other_upper, other_lower, fi
     sorted_indices = np.arange(start, end)
     # Plot
     plt.figure(figsize=(8, 5))
-    plt.plot(sorted_indices, my_upper_sorted, label="My Method Upper", linestyle="--", marker="o")
-    plt.plot(sorted_indices, my_lower_sorted, label="My Method Lower", linestyle="--", marker="o")
-    plt.plot(sorted_indices, other_upper_sorted, label="Other Method Upper", linestyle=":", marker="s")
-    plt.plot(sorted_indices, other_lower_sorted, label="Other Method Lower", linestyle=":", marker="s")
-    plt.plot(sorted_indices, targets_sorted, label="Targets", linestyle="-.", color="black", alpha=0.5)
+    plt.plot(sorted_indices, my_upper[start:end], label="My Method Upper", linestyle="--", marker="o")
+    plt.plot(sorted_indices, my_lower[start:end], label="My Method Lower", linestyle="--", marker="o")
+    # plt.plot(sorted_indices, other_upper[start:end], label="Other Method Upper", linestyle=":", marker="s")
+    # plt.plot(sorted_indices, other_lower[start:end], label="Other Method Lower", linestyle=":", marker="s")
+    plt.plot(sorted_indices, targets[start:end], label="Targets", linestyle="-.", color="black", alpha=0.5, marker="x")
 
     # Labels and legend
     plt.xlabel("Targets (Sorted)")
