@@ -129,7 +129,7 @@ def train(base_model= 'efficientnetb4',
           bigger = False,
           normalize = False,
           gpu=3,
-          level=1):
+          level=2):
     print("Current PID:", os.getpid())
 
 

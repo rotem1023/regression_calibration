@@ -28,7 +28,7 @@ from torch.utils.data import Dataset, DataLoader
 def save_snapshot(save_dir, model_name, dataset_name, epoch, model,  is_best = False):
     suffix = 'best' if is_best else 'new'
     os.makedirs(save_dir, exist_ok=True)
-    filename = f"{save_dir}/{model_name}_{dataset_name}_snapshot_{suffix}.pth.tar"
+    filename = f"{save_dir}/{model_name}_{dataset_name}_snapshot_{suffix}_tmp.pth.tar"
     print(f"Saving snapshot, path: {filename}")
     torch.save({
         'epoch': epoch,
@@ -118,13 +118,13 @@ def train(base_model= 'efficientnetb4',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=200,
+          epochs=60,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=1,
-          level=5):
+          gpu=2,
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -198,7 +198,7 @@ def train(base_model= 'efficientnetb4',
     
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(dist_optimizer, patience=lr_patience, factor=0.1)
 
-    loss_dist = CustomLoss()
+    loss_dist = nll_criterion_gaussian
 
     train_losses = []
     valid_losses = []
@@ -235,7 +235,7 @@ def train(base_model= 'efficientnetb4',
 
                 # Compute loss for distance model
 
-                dist_loss = loss_dist(predictions.float(), targets.float())
+                dist_loss = loss_dist(predictions[:,0].unsqueeze(-1), predictions[:,1].unsqueeze(-1), targets.float().unsqueeze(-1))
 
                 # Backward pass for the combined loss
                 dist_loss.backward()
@@ -278,9 +278,9 @@ def train(base_model= 'efficientnetb4',
 
                     # -------- Evaluate Distance Model --------
                     predictions = dist_model(data, dropout=True) # Predict d+ and d-
-                    predictions = torch.stack([predictions[0], predictions[1], predictions[2]], dim=1).squeeze(-1)
+                    predictions = torch.stack([predictions[0], predictions[1]], dim=1).squeeze(-1)
 
-                    dist_loss = loss_dist(predictions.float(), targets.float())
+                    dist_loss = loss_dist(predictions[:,0].unsqueeze(-1), predictions[:,1].unsqueeze(-1), targets.float().unsqueeze(-1))
                     dist_valid_loss.append(dist_loss.item())
                     
 

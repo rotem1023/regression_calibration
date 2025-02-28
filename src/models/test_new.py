@@ -16,7 +16,7 @@ from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_lumbar import LumbarDataset
 from data_generator_boneage import BoneAgeDataset
-from models import BreastPathQModel, DistancePredictor, DistancePredictorOneOutput
+from models import BreastPathQModel, DistancePredictor, DistancePredictorOneOutput, DistNewModel
 from glob import glob
 import statistics
 import math
@@ -325,7 +325,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     lambda_param = 1
     iters = 20
     level = 1
-    alpha = 0.05
+    alpha = 0.1
 
     
     
@@ -343,14 +343,14 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             # dist_model = load_trained_models.get_model_lumbar(base_model_dist, level, base_model, device, lambda_param=lambda_param, one_out=one_output, loss=loss, pred_x=pred_x, pred_y=pred_x, normalize=normalize)
             # dist_model_upper = load_dist_model(base_model, device, level, upper=True)
             # dist_model_lower = load_dist_model(base_model, device, level, upper=False)   
-            model = BreastPathQModel(base_model, out_channels=1).to(device) 
-            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_scale_factor1_best.pth.tar", map_location=device)
+            model = DistNewModel(base_model, out_channels=1).to(device) 
+            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{base_model}_lumbar_L{level}_snapshot_dist_{base_model}_lambda_1_scale_factor1_best.pth.tar", map_location=device)
             model.load_state_dict(checkpoint['state_dict'])
             print(f"epoch: {checkpoint['epoch']}")
             model.eval()  
                  
-            dist_model = BreastPathQModel(base_model, out_channels=1).to(device) 
-            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_dist_scale_factor1_best.pth.tar", map_location=device)
+            dist_model = DistNewModel(base_model, out_channels=1).to(device) 
+            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{base_model}_lumbar_L{level}_snapshot_dist_{base_model}_lambda_1_dist_scale_factor1_best.pth.tar", map_location=device)
             dist_model.load_state_dict(checkpoint['state_dict'])
             print(f"epoch: {checkpoint['epoch']}")
             dist_model.eval()    

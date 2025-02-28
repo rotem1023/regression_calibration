@@ -59,7 +59,6 @@ def calc_length(lower, upper):
     
 
 def calc_optimal_q(target_calib, mu_calib, left_sd_calib, right_sd_calib, alpha):
-    
     s_t = torch.where(target_calib < mu_calib, (mu_calib - target_calib) / left_sd_calib, (target_calib - mu_calib) / right_sd_calib)
     s_t_sorted, _ = torch.sort(s_t, dim=0)
     q_index = math.ceil((len(s_t_sorted)) * (1 - alpha))
@@ -213,7 +212,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     one_output = False
     load_results = False
     iters = 20
-    level = 5
+    level = 1
     alpha = 0.05
 
     
@@ -264,8 +263,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         sd_left_test_original = log_var_left_test_original.exp().sqrt()
         sd_right_test_original = log_var_right_test_original.exp().sqrt()
 
-        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, y = targets_calib_original, mu=y_p_calib_original, sd_left=sd_left_calib_original, sd_right=sd_right_calib_original)
-        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, y = targets_test_original, mu=y_p_test_original, sd_left=sd_left_test_original, sd_right=sd_right_test_original)
+        # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, y = targets_calib_original, mu=y_p_calib_original, sd_left=sd_left_calib_original, sd_right=sd_right_calib_original)
+        # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, y = targets_test_original, mu=y_p_test_original, sd_left=sd_left_test_original, sd_right=sd_right_test_original)
     else:
         targets_calib_original, y_p_calib_original, sd_left_calib_original, sd_right_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level)
         targets_test_original, y_p_test_original, sd_left_test_original, sd_right_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level)

@@ -17,7 +17,7 @@ from tqdm import tqdm
 from data_generator_boneage import BoneAgeDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
-from models import BreastPathQModel, DistancePredictor
+from models import BreastPathQModel, DistancePredictor, DistNewModel
 from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
 import torch.nn as nn
@@ -256,14 +256,14 @@ def train(base_model= 'efficientnetb4',
         data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5, pred_x=pred_x, pred_y=pred_y)
         data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5, pred_x=pred_x, pred_y=pred_y)
         model = load_trained_models.get_model_lumbar(base_model, level, None, device)
-        model = BreastPathQModel(base_model, out_channels=1).to(device) 
+        model = DistNewModel(base_model, out_channels=1).to(device) 
         checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_scale_factor1_best.pth.tar", map_location=device)
         model.load_state_dict(checkpoint['state_dict'])
         print(f"epoch: {checkpoint['epoch']}")
         model.eval()    
         
         # dist_model = DistancePredictor(dist_model_name).to(device)
-        dist_model = BreastPathQModel(base_model, in_channels=3, out_channels=1,
+        dist_model = DistNewModel(base_model, in_channels=3, out_channels=1,
                              pretrained=True).to(device)
         if pred_x or pred_y:
             save_dir =f"{save_dir}/one_dim"
