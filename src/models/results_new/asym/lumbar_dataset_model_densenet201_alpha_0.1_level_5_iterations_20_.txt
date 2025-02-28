@@ -1,0 +1,4 @@
+q CP asym mean: 1.2791407883167267, q CP std: 0.012283694562781972
+avg_len CP asym mean: 0.10910041145980358, avg_len CP std: 0.0012283930027692396
+avg_cov CP asym mean: 0.8992889851331711, avg_cov CP std: 0.009923675061224201
+lumbar, densenet201, 0.1, 5
