@@ -113,7 +113,7 @@ def zero_smaller_pred(predicted_distances, scale_factor):
     return torch.stack([zero_first_dim, zero_second_dim], dim=1)
     
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
           dist_model_name = 'efficientnetb4',
@@ -128,8 +128,8 @@ def train(base_model= 'efficientnetb4',
           scale_factor = 1,
           bigger = False,
           normalize = False,
-          gpu=3,
-          level=2):
+          gpu=1,
+          level=1):
     print("Current PID:", os.getpid())
 
 

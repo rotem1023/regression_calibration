@@ -41,8 +41,8 @@ torch.backends.cudnn.benchmark = False
 
 
 def calc_stats(q, target, mu, left_sd, right_sd):
-    lower = mu - q * left_sd
-    upper = mu + q * right_sd
+    lower = mu - q * right_sd
+    upper = mu + q * left_sd
     length = calc_length(lower, upper)
     coverage = calc_coverage(lower, upper, target)
     return length, coverage
@@ -71,7 +71,7 @@ def calc_optimal_q(target_calib, mu_calib, left_sd_calib, right_sd_calib, alpha)
     left_sd_calib_smaller = left_sd_calib[~bigger_index]
     q_smaller = torch.quantile((mu_calib_smaller - target_calib_smaller) / left_sd_calib_smaller, 1 - alpha)
     
-    s_t = torch.where(target_calib < mu_calib, (mu_calib - target_calib) / left_sd_calib, (target_calib - mu_calib) / right_sd_calib)
+    s_t = torch.where(target_calib < mu_calib, (mu_calib - target_calib) / right_sd_calib, (target_calib - mu_calib) / left_sd_calib)
     s_t_sorted, _ = torch.sort(s_t, dim=0)
     q_index = math.ceil((len(s_t_sorted)) * (1 - alpha))
     q = s_t_sorted[q_index].item()   
@@ -222,10 +222,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_x = False
     pred_y = False
     one_output = False
-    load_results = False
+    load_results = True
     iters = 20
-    level = 5
-    alpha = 0.05
+    level = 2
+    alpha = 0.1
 
     
     
@@ -250,7 +250,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             print(f"epoch: {checkpoint['epoch']}")
             model.eval()  
                  
-            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
+            data_set_valid_original = LumbarDataset(level=level, mode='valid', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
             data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, pred_x=pred_x, pred_y=pred_x, scale=0.5)
         elif dataset == 'boneage':
             resize_to = (256, 256)
