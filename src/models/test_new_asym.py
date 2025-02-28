@@ -59,6 +59,18 @@ def calc_length(lower, upper):
     
 
 def calc_optimal_q(target_calib, mu_calib, left_sd_calib, right_sd_calib, alpha):
+    bigger_index = target_calib > mu_calib
+    target_calib_bigger = target_calib[bigger_index]
+    mu_calib_bigger = mu_calib[bigger_index]
+    right_sd_calib_bigger = right_sd_calib[bigger_index]
+    q_bigger = torch.quantile((target_calib_bigger - mu_calib_bigger) / right_sd_calib_bigger, 1 - alpha)
+    
+    
+    target_calib_smaller = target_calib[~bigger_index]
+    mu_calib_smaller = mu_calib[~bigger_index]
+    left_sd_calib_smaller = left_sd_calib[~bigger_index]
+    q_smaller = torch.quantile((mu_calib_smaller - target_calib_smaller) / left_sd_calib_smaller, 1 - alpha)
+    
     s_t = torch.where(target_calib < mu_calib, (mu_calib - target_calib) / left_sd_calib, (target_calib - mu_calib) / right_sd_calib)
     s_t_sorted, _ = torch.sort(s_t, dim=0)
     q_index = math.ceil((len(s_t_sorted)) * (1 - alpha))
@@ -212,7 +224,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     one_output = False
     load_results = False
     iters = 20
-    level = 1
+    level = 5
     alpha = 0.05
 
     
@@ -233,7 +245,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             # dist_model_lower = load_dist_model(base_model, device, level, upper=False)   
             model = BreastPathQModel3Heads(base_model, in_channels=3, out_channels=1,
                              pretrained=True).to(device) 
-            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_asym/efficientnetb4_lumbar_L{level}_snapshot_new.pth.tar", map_location=device)
+            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_asym/efficientnetb4_lumbar_L{level}_snapshot_best.pth.tar", map_location=device)
             model.load_state_dict(checkpoint['state_dict'])
             print(f"epoch: {checkpoint['epoch']}")
             model.eval()  
@@ -263,8 +275,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         sd_left_test_original = log_var_left_test_original.exp().sqrt()
         sd_right_test_original = log_var_right_test_original.exp().sqrt()
 
-        # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, y = targets_calib_original, mu=y_p_calib_original, sd_left=sd_left_calib_original, sd_right=sd_right_calib_original)
-        # save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, y = targets_test_original, mu=y_p_test_original, sd_left=sd_left_test_original, sd_right=sd_right_test_original)
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, y = targets_calib_original, mu=y_p_calib_original, sd_left=sd_left_calib_original, sd_right=sd_right_calib_original)
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, y = targets_test_original, mu=y_p_test_original, sd_left=sd_left_test_original, sd_right=sd_right_test_original)
     else:
         targets_calib_original, y_p_calib_original, sd_left_calib_original, sd_right_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level)
         targets_test_original, y_p_test_original, sd_left_test_original, sd_right_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level)
