@@ -118,12 +118,12 @@ def train(base_model= 'densenet201',
           dataset = 'lumbar',
           batch_size=32,
           init_lr=0.001,
-          epochs=52,
+          epochs=100,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=1,
+          gpu=2,
           level=2):
     print("Current PID:", os.getpid())
 

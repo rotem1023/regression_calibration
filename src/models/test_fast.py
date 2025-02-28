@@ -158,8 +158,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:3")
     iters = 20
-    level = 1
-    alpha = 0.05
+    level = 4
+    alpha = 0.1
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
