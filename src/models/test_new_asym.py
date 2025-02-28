@@ -222,10 +222,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_x = False
     pred_y = False
     one_output = False
-    load_results = True
+    load_results = False
     iters = 20
     level = 2
-    alpha = 0.1
+    alpha = 0.05
 
     
     

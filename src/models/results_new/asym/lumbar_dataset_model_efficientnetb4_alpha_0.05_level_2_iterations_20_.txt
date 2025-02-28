@@ -1,4 +1,4 @@
-q CP asym mean: 4465.014599609375, q CP std: 777.0452394526006
-avg_len CP asym mean: 0.7821092635393143, avg_len CP std: 0.008375359251235013
-avg_cov CP asym mean: 0.9505949288606643, avg_cov CP std: 0.004831176047694398
+q CP asym mean: 1.50024933218956, q CP std: 0.025554987915852694
+avg_len CP asym mean: 0.07352546192705631, avg_len CP std: 0.001257904417075515
+avg_cov CP asym mean: 0.9516813188791275, avg_cov CP std: 0.007850014407643185
 lumbar, efficientnetb4, 0.05, 2
