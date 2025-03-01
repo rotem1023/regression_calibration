@@ -7,20 +7,20 @@ torch.manual_seed(1)
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torchvision import datasets, transforms, models
+# from torchvision import datasets, transforms, models
 from torch.utils.data import SubsetRandomSampler, ConcatDataset, Subset
-from tqdm import tqdm
+# from tqdm import tqdm
 import torch
 from matplotlib import pyplot as plt
-from tqdm import tqdm
+# from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
-from data_generator_endovis import EndoVisDataset
-from data_generator_lumbar import LumbarDataset
-from cqr_model import BreastPathQModel
+# from data_generator_endovis import EndoVisDataset
+# from data_generator_lumbar import LumbarDataset
+# from cqr_model import BreastPathQModel
 from glob import glob
 import statistics
 import math
-import load_trained_models
+# import load_trained_models
 
 
     
@@ -44,7 +44,11 @@ def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
 
 
 def calc_stats(q, target, mu):
-    length = torch.mean(abs((mu[:, 1] + q) - (mu[:, 0] - q)))
+    upper = mu[:, 1] + q
+    lower = mu[:, 0] - q
+    upper = torch.clamp(upper, 0, 1)
+    lower = torch.clamp(lower, 0, 1)
+    length = torch.mean(abs((upper - lower)))
     coverage = avg_cov(mu, q, target.unsqueeze(1).mean(dim=1))
     print(f'Length: {length}, Coverage: {coverage}')
     return length, coverage
@@ -142,43 +146,54 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     iters = 20
-    level = 5
+    level = 1
     alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
-    model = BreastPathQModel(base_model, out_channels=2).to(device)
+    # model = BreastPathQModel(base_model, out_channels=2).to(device)
 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
-    model.load_state_dict(checkpoint['state_dict'])
-    print(f"epoch: {checkpoint['epoch']}")
+    # checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
+    # model.load_state_dict(checkpoint['state_dict'])
+    # print(f"epoch: {checkpoint['epoch']}")
     
     batch_size = 64
 
 
-    data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
-    data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+    # data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
+    # data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
     
-    assert len(data_set_valid_original) > 0
-    assert len(data_set_test_original) > 0
-    print(len(data_set_valid_original))
-    print(len(data_set_test_original))
+    # assert len(data_set_valid_original) > 0
+    # assert len(data_set_test_original) > 0
+    # print(len(data_set_valid_original))
+    # print(len(data_set_test_original))
         
-    calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
-    test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
+    # calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
+    # test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
     
-    y_p_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
-    y_p_test_original, targets_test_original = get_arrays(test_loader, model, device)
+    # y_p_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
+    # y_p_test_original, targets_test_original = get_arrays(test_loader, model, device)
     
     # save arrays
-    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr"
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
-    
+    results_dir = "/Users/rnizhar/dev/regression_calibration/src/models/results/predictions/cqr"
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+    # np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
+
+    # Load the NumPy arrays
+    y_p_calib_original_np = np.load(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy')
+    targets_calib_original_np = np.load(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy')
+    y_p_test_original_np = np.load(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy')
+    targets_test_original_np = np.load(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy')
+
+    # Convert to PyTorch tensors
+    y_p_calib_original = torch.from_numpy(y_p_calib_original_np)
+    targets_calib_original = torch.from_numpy(targets_calib_original_np)
+    y_p_test_original = torch.from_numpy(y_p_test_original_np)
+    targets_test_original = torch.from_numpy(targets_test_original_np)
     
     
     # Calibration and test arrays (from your original code)
@@ -255,7 +270,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     print(f"test coverage's {cov_test_sets}")
 
     # Define the output file path
-    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
+    output_dir= '/Users/rnizhar/dev/regression_calibration/src/models/results/cqr'
     output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
 
     # Open the file in append mode

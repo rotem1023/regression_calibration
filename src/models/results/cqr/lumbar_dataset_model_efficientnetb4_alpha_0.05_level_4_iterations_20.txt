@@ -1,6 +1,6 @@
 q mean: 0.051768526434898376, q std: 0.003800357845242085
-avg_len valid  mean: 0.3607761159539223, avg_len valid std: 0.007532658793058601
+avg_len valid  mean: 0.3589007705450058, avg_len valid std: 0.007331961535891767
 avg_cov valid mean: 95.08113861083984, avg_cov std: 0.0
-avg_len test mean: 0.3627086952328682, avg_len test std: 0.007891143564185738
+avg_len test mean: 0.3607585787773132, avg_len test std: 0.007756782239259292
 avg_cov test mean: 94.96957397460938, avg_cov test std: 0.6339230328922446
 lumbar cqr, efficientnetb4, 0.05, 4
