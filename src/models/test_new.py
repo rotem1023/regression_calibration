@@ -314,7 +314,7 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     base_model_dist = 'resnet50'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
@@ -323,12 +323,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_x = False
     pred_y = False
     one_output = False
-    load_results = False
+    load_results = True
     normalize = False
     scale_factor = 1.0
     lambda_param = 1
     iters = 20
-    level = 2
+    level = 4
     alpha = 0.05
 
     
@@ -388,7 +388,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     else:
         targets_calib_original, y_p_calib_original,  logvars_calib_original, positive_dist_calib_original, negative_dist_calib_original, right_dist_calib_original, left_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor)
         vars_calib_original = logvars_calib_original.exp()
-        targets_test_original, y_p_test_original, logvars_test_original, positive_dist_test_original, negative_dist_test_original, right_dist_calib_original, left_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
+        targets_test_original, y_p_test_original, logvars_test_original, positive_dist_test_original, negative_dist_test_original, right_dist_test_original, left_dist_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
         vars_test_original = logvars_test_original.exp()
     
     if normalize:

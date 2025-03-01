@@ -116,7 +116,7 @@ def zero_smaller_pred(predicted_distances, scale_factor):
 def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
-          dist_model_name = 'efficientnetb4',
+          dist_model_name = 'densenet201',
           batch_size=32,
           init_lr=0.005,
           epochs=500,

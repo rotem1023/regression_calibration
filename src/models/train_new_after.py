@@ -197,10 +197,10 @@ def zero_smaller_pred(predicted_distances, scale_factor):
     return torch.stack([zero_first_dim, zero_second_dim], dim=1)
     
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
           dataset = 'lumbar',
-          dist_model_name = 'efficientnetb4',
+          dist_model_name = 'densenet201',
           batch_size=32,
           init_lr=0.005,
           epochs=500,
@@ -213,7 +213,7 @@ def train(base_model= 'efficientnetb4',
           bigger = False,
           normalize = False,
           gpu=3,
-          level=2):
+          level=3):
     print("Current PID:", os.getpid())
 
 
@@ -257,7 +257,7 @@ def train(base_model= 'efficientnetb4',
         data_set_valid = LumbarDataset(level=level, mode='valid', augment=False, scale=0.5, pred_x=pred_x, pred_y=pred_y)
         model = load_trained_models.get_model_lumbar(base_model, level, None, device)
         model = DistNewModel(base_model, out_channels=1).to(device) 
-        checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/efficientnetb4_lumbar_L{level}_snapshot_dist_efficientnetb4_lambda_1_scale_factor1_best.pth.tar", map_location=device)
+        checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_new/{base_model}_lumbar_L{level}_snapshot_dist_{base_model}_lambda_1_scale_factor1_best.pth.tar", map_location=device)
         model.load_state_dict(checkpoint['state_dict'])
         print(f"epoch: {checkpoint['epoch']}")
         model.eval()    
