@@ -165,13 +165,15 @@ def get_saved_dir(results_dir, dataset, base_model, dist_model, loss,group,  lev
 
     
 
-def save_arrays(results_dir, dataset, base_model, dist_model, loss, group, level, lambda_param, scale_factor, y, mu, logvar, positive_distance, negative_distance):
+def save_arrays(results_dir, dataset, base_model, dist_model, loss, group, level, lambda_param, scale_factor, y, mu, logvar, positive_distance, negative_distance, right_dist_calib_original, left_dist_calib_original):
     saved_dir = get_saved_dir(results_dir=results_dir, dataset=dataset, base_model=base_model, dist_model=dist_model, loss = loss, group = group, level=level, lambda_param = lambda_param, scale_factor = scale_factor)
     np.save(f'{saved_dir}/y.npy', y.cpu().numpy())
     np.save(f'{saved_dir}/mu.npy', mu.cpu().numpy())
     np.save(f'{saved_dir}/logvar.npy', logvar.cpu().numpy())  
     np.save(f'{saved_dir}/positive_distance.npy', positive_distance.cpu().numpy()) 
     np.save(f'{saved_dir}/negative_distance.npy', negative_distance)
+    np.save(f'{saved_dir}/right_distance.npy', right_dist_calib_original.cpu().numpy())
+    np.save(f'{saved_dir}/left_distance.npy', left_dist_calib_original.cpu().numpy())
 
 def load_arrays(results_dir, dataset, base_model, dist_model, loss, group, level, lambda_param, scale_factor):
     saved_dir = get_saved_dir(results_dir=results_dir, dataset=dataset, base_model=base_model, dist_model=dist_model, loss = loss, group = group, level=level, lambda_param = lambda_param, scale_factor = scale_factor)
@@ -180,7 +182,9 @@ def load_arrays(results_dir, dataset, base_model, dist_model, loss, group, level
     logvar = np.load(f'{saved_dir}/logvar.npy')  
     pos_dist = np.load(f'{saved_dir}/positive_distance.npy') 
     neg_dist = np.load(f'{saved_dir}/negative_distance.npy')
-    return torch.from_numpy(y), torch.from_numpy(mu), torch.from_numpy(logvar), torch.from_numpy(pos_dist), torch.from_numpy(neg_dist)
+    right_dist = np.load(f'{saved_dir}/right_distance.npy')
+    left_dist = np.load(f'{saved_dir}/left_distance.npy')
+    return torch.from_numpy(y), torch.from_numpy(mu), torch.from_numpy(logvar), torch.from_numpy(pos_dist), torch.from_numpy(neg_dist), torch.from_numpy(right_dist), torch.from_numpy(left_dist)
     
 def modify_predicted_distances(predicted_distances, probs):
     first_dim_results = predicted_distances * probs
@@ -379,12 +383,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         vars_test_original = logvars_test_original.exp()
         positive_dist_calib_original, negative_dist_calib_original = sort_two_tensors(positive_dist_calib_original, negative_dist_calib_original)
         positive_dist_test_original, negative_dist_test_original = sort_two_tensors(positive_dist_test_original, negative_dist_test_original)
-        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_calib_original, mu=y_p_calib_original, logvar=logvars_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original)
-        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_test_original, mu=y_p_test_original, logvar=logvars_test_original, positive_distance=positive_dist_test_original, negative_distance= negative_dist_test_original)
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_calib_original, mu=y_p_calib_original, logvar=logvars_calib_original, positive_distance=positive_dist_calib_original, negative_distance= negative_dist_calib_original, right_dist_calib_original=right_dist_calib_original, left_dist_calib_original=left_dist_calib_original)
+        save_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor, y = targets_test_original, mu=y_p_test_original, logvar=logvars_test_original, positive_distance=positive_dist_test_original, negative_distance= negative_dist_test_original, right_dist_calib_original=right_dist_calib_original, left_dist_calib_original=left_dist_calib_original)
     else:
-        targets_calib_original, y_p_calib_original,  logvars_calib_original, positive_dist_calib_original, negative_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor)
+        targets_calib_original, y_p_calib_original,  logvars_calib_original, positive_dist_calib_original, negative_dist_calib_original, right_dist_calib_original, left_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'valid', level = cur_level, lambda_param=lambda_param, scale_factor = scale_factor)
         vars_calib_original = logvars_calib_original.exp()
-        targets_test_original, y_p_test_original, logvars_test_original, positive_dist_test_original, negative_dist_test_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
+        targets_test_original, y_p_test_original, logvars_test_original, positive_dist_test_original, negative_dist_test_original, right_dist_calib_original, left_dist_calib_original = load_arrays(results_dir = results_dir, dataset = dataset, base_model = base_model, dist_model = base_model_dist, loss = loss, group = 'test', level = cur_level, lambda_param = lambda_param, scale_factor = scale_factor,)
         vars_test_original = logvars_test_original.exp()
     
     if normalize:

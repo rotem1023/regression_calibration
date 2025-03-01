@@ -72,7 +72,9 @@ def calc_optimal_q(target_calib, mu_calib, left_sd_calib, right_sd_calib, alpha)
     q_smaller = torch.quantile((mu_calib_smaller - target_calib_smaller) / left_sd_calib_smaller, 1 - alpha)
     
     s_t = torch.where(target_calib < mu_calib, (mu_calib - target_calib) / right_sd_calib, (target_calib - mu_calib) / left_sd_calib)
-    s_t_sorted, _ = torch.sort(s_t, dim=0)
+    sort_indices = torch.argsort(s_t, dim=0)  # Get sorted indices
+    s_t_sorted = s_t[sort_indices]  # Apply sorting to s_t
+    bigger_index_sorted = bigger_index[sort_indices] 
     q_index = math.ceil((len(s_t_sorted)) * (1 - alpha))
     q = s_t_sorted[q_index].item()   
     return q
@@ -222,9 +224,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_x = False
     pred_y = False
     one_output = False
-    load_results = False
+    load_results = True
     iters = 20
-    level = 1
+    level = 2
     alpha = 0.05
 
     
@@ -245,7 +247,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             # dist_model_lower = load_dist_model(base_model, device, level, upper=False)   
             model = BreastPathQModel3Heads(base_model, in_channels=3, out_channels=1,
                              pretrained=True).to(device) 
-            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_asym/{base_model}_lumbar_L{level}_snapshot_best.pth.tar", map_location=device)
+            checkpoint = torch.load(f"/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots_asym/{base_model}_lumbar_L{level}_snapshot_new.pth.tar", map_location=device)
             model.load_state_dict(checkpoint['state_dict'])
             print(f"epoch: {checkpoint['epoch']}")
             model.eval()  

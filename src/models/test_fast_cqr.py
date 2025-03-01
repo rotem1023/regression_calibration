@@ -43,7 +43,11 @@ def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
 
 
 def calc_stats(q, target, mu):
-    length = torch.mean(abs((mu[:, 1] + q) - (mu[:, 0] - q)))
+    upper = mu[:, 1] + q
+    lower = mu[:, 0] - q
+    upper = torch.clamp(upper, 0, 1)
+    lower = torch.clamp(lower, 0, 1)
+    length = torch.mean(abs(upper - lower))
     coverage = avg_cov(mu, q, target.unsqueeze(1).mean(dim=1))
     print(f'Length: {length}, Coverage: {coverage}')
     return length, coverage
@@ -144,8 +148,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     pred_x = False
     pred_y = False
     iters = 20
-    level = 3
-    alpha = 0.05
+    level = 5
+    alpha = 0.1
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     

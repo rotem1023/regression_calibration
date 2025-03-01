@@ -1,6 +1,6 @@
-q mean: 0.041379418969154355, q std: 0.0016697825560734565
-avg_len valid  mean: 0.2513796344399452, avg_len valid std: 0.003346443293804461
+q mean: 0.03757318407297135, q std: 0.0022743296392120794
+avg_len valid  mean: 0.24430436119437218, avg_len valid std: 0.004831314266013917
 avg_cov valid mean: 95.08113861083984, avg_cov std: 0.0
-avg_len test mean: 0.2514215916395187, avg_len test std: 0.003380401660970689
-avg_cov test mean: 95.05071029663085, avg_cov test std: 0.721174951315142
+avg_len test mean: 0.2441333293914795, avg_len test std: 0.004291489297187167
+avg_cov test mean: 95.03042716979981, avg_cov test std: 0.894053672374837
 lumbar cqr, densenet201, 0.05, 4
