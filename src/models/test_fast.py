@@ -20,6 +20,8 @@ from models import BreastPathQModel, DistancePredictor
 from glob import glob
 import statistics
 import math
+from data_generator_brain import BrainDatasetTest, BrainDatasetVal 
+
 
 
     
@@ -135,9 +137,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:1")
+    device = torch.device("cuda:0")
+    dataset = 'brain'
     iters = 20
-    level = 5
+    level = 1
     alpha = 0.05
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
@@ -147,16 +150,22 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     # TODO: load checkpoint 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    
-    checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
+    # TODO fix it 
+    if dataset == 'brain':
+        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_{dataset}_best.pth.tar')
+    else:
+        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"epoch: {checkpoint['epoch']}")
     
     batch_size = 64
 
-
-    data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
-    data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+    if dataset =='brain':
+        data_set_valid_original = BrainDatasetVal(model=base_model)
+        data_set_test_original = BrainDatasetTest(model=base_model)
+    else:
+        data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
+        data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
     
     assert len(data_set_valid_original) > 0
     assert len(data_set_test_original) > 0
@@ -172,12 +181,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     # save test arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"
     
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_calib_original.cpu().numpy())  
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy()) 
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_test_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_calib_original.cpu().numpy())  
+    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy()) 
+    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_test_original.cpu().numpy())
 
     # print(f"y_p_test: {list(y_p_test_original)}")
     # print(f"logvars_test: {list(logvars_test_original)}")
@@ -293,7 +302,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     # Define the output file path
     output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results'
-    output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_after.txt"
+    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_after.txt"
 
     # Open the file in append mode
     with open(f'{output_dir}/{output_file}', "w") as f:
@@ -333,8 +342,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
                  
         # Print and save additional info
-        print(f"lumbar, {base_model}, {alpha}, {level}")
-        f.write(f"lumbar, {base_model}, {alpha}, {level}\n")
+        print(f"{dataset}, {base_model}, {alpha}, {level}")
+        f.write(f"{dataset}, {base_model}, {alpha}, {level}\n")
     
   
 def get_float(x):

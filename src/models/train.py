@@ -16,6 +16,7 @@ from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from data_generator_oct import OCTDataset
+from data_generator_brain import BrainDatasetTrain, BrainDatasetVal 
 from models import BreastPathQModel
 from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
@@ -25,24 +26,24 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
-          dataset = 'lumbar',
-          batch_size=32,
+          dataset = 'brain',
+          batch_size=4,
           init_lr=0.001,
-          epochs=50,
+          epochs=500,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
-          level=5):
+          gpu=2,
+          level=1):
     print("Current PID:", os.getpid())
 
 
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     assert likelihood in ['gaussian', 'laplacian']
-    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar']
+    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar', 'brain']
     assert gpu in [0, 1, 2,3]
 
     device = torch.device("cuda:"+str(gpu) if torch.cuda.is_available() else "cpu")
@@ -187,6 +188,24 @@ def train(base_model= 'densenet201',
                                                    sampler=SubsetRandomSampler(train_indices))
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size,
                                                    sampler=SubsetRandomSampler(valid_indices))
+    elif dataset == 'brain':
+        in_channels = 3
+        out_channels = 1
+        pretrained = True
+
+        
+
+        data_set_train = BrainDatasetTrain(model=base_model)
+        data_set_valid = BrainDatasetVal(model=base_model)
+
+        assert len(data_set_train) > 0
+        assert len(data_set_valid) > 0
+
+        print("len(data_set_train)", len(data_set_train))
+        print("len(data_set_valid)", len(data_set_valid))
+
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=32, shuffle=False)
     else:
         assert False
 
@@ -248,10 +267,12 @@ def train(base_model= 'densenet201',
             print("lr =", optimizer_net.param_groups[0]['lr'])
             for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
                 data, targets = data.to(device), targets.to(device)
+                targets = targets.unsqueeze(-1)
                 optimizer_net.zero_grad()
                 mu, logvar, _ = model(data, dropout=True)
                 loss = nll_criterion(mu, logvar, targets).to(device)
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 epoch_train_loss.append(loss.item())
                 optimizer_net.step()
 
@@ -279,7 +300,7 @@ def train(base_model= 'densenet201',
             mu_train = torch.cat(mu_train, dim=0)
             logvar_train = torch.cat(logvar_train, dim=0)
             # mse_train = metric(mu_train, targets_train)
-            mse_train = metric(mu_train, targets_train.unsqueeze(-1))
+            mse_train = metric(mu_train, targets_train)
 
 
             model.eval()
@@ -291,6 +312,7 @@ def train(base_model= 'densenet201',
             with torch.no_grad():
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
+                    targets = targets.unsqueeze(-1)
                     mu, logvar, _ = model(data, dropout=True)
                     loss = nll_criterion(mu, logvar, targets).to(device)
                     epoch_valid_loss.append(loss.item())
@@ -347,7 +369,8 @@ def train(base_model= 'densenet201',
             save_current_snapshot(base_model, likelihood, dataset_name, e, model, optimizer_net, train_losses, valid_losses, 0, 0)
 
     except KeyboardInterrupt:
-        save_current_snapshot(base_model, likelihood, dataset_name, e-1, model, optimizer_net, train_losses, valid_losses, 0, 0)
+        print("KeyboardInterrupt, saving models")
+        # save_current_snapshot(base_model, likelihood, dataset_name, e-1, model, optimizer_net, train_losses, valid_losses, 0, 0)
 
 
 if __name__ == '__main__':

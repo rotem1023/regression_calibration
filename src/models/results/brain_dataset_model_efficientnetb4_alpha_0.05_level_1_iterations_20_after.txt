@@ -1,12 +1,12 @@
-q CP mean: 1.7102945685386657, q CP std: 0.029120431780073838
-avg_len CP mean: 0.5242418229579926, avg_len CP std: 0.009773949718807564
-avg_cov CP mean: 95.0647792706334, avg_cov CP std: 0.40618563554068654
-q GC mean: 1.5998027167861462, q GC std: 0.006627077366823863
-avg_len GC mean: 0.4903661638498306, avg_len GC std: 0.0031550693664967253
-avg_cov GC mean: 94.1882597568778, avg_cov GC std: 0.26191305401530146
+q CP mean: 2.452930736541748, q CP std: 0.04916609023640764
+avg_len CP mean: 0.49838838577270506, avg_len CP std: 0.01008610286678983
+avg_cov CP mean: 94.96801023672425, avg_cov CP std: 0.38543140923909197
+q GC mean: 1.8724572012569904, q GC std: 0.009149886790155489
+avg_len GC mean: 0.3804516300559044, avg_len GC std: 0.002834853256907774
+avg_cov GC mean: 91.15642994241843, avg_cov GC std: 0.344106219455075
 Validation results:
-avg_len validation mean: 0.5243679940700531, avg_len validation std: 0.008388866815005147
-avg_cov validation mean: 95.02943100065401, avg_cov validation std: 0.0
-avg_len validation mean GC: 0.4904994606971741, avg_len validation std GC: 0.002029442071142004
-avg_cov validation mean GC: 94.15467625899281, avg_cov validation std GC: 0.15883487572597177
+avg_len validation mean: 0.4985247373580933, avg_len validation std: 0.010322697527645001
+avg_cov validation mean: 95.02779594506212, avg_cov validation std: 0.0050325949252018505
+avg_len validation mean GC: 0.38054699301719663, avg_len validation std GC: 0.0019555862904173916
+avg_cov validation mean GC: 91.13636363636364, avg_cov validation std GC: 0.19605601596185643
 brain, efficientnetb4, 0.05, 1

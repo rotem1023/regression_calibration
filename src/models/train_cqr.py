@@ -16,6 +16,7 @@ import os
 #from src.data.data_generator_breast import BreastPathQDataset
 from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
+from data_generator_brain import BrainDatasetTrain, BrainDatasetVal 
 from data_generator_oct import OCTDataset
 from cqr_model import BreastPathQModel
 # from models import BreastPathQModel as BreastPathQModelGauss
@@ -113,7 +114,7 @@ def train(base_model,
           weight_decay=1e-8,
           gpu=0,
           gamma=0.5, 
-          level = 5,
+          level = 1,
           alpha= 0.1):
           
     qlow = alpha/2
@@ -126,7 +127,7 @@ def train(base_model,
     print(dataset)
 
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar']
+    assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar', 'brain']
     assert gpu in [0, 1, 2, 3]
 
     device = torch.device("cuda:"+str(gpu) if torch.cuda.is_available() else "cpu")
@@ -273,6 +274,24 @@ def train(base_model,
                                                    sampler=SubsetRandomSampler(train_indices))
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size,
                                                    sampler=SubsetRandomSampler(valid_indices))
+    elif dataset == 'brain':
+        in_channels = 3
+        out_channels = 1
+        pretrained = True
+
+        
+
+        data_set_train = BrainDatasetTrain(model=base_model)
+        data_set_valid = BrainDatasetVal(model=base_model)
+
+        assert len(data_set_train) > 0
+        assert len(data_set_valid) > 0
+
+        print("len(data_set_train)", len(data_set_train))
+        print("len(data_set_valid)", len(data_set_valid))
+
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=32, shuffle=False)
     else:
         assert False
 
@@ -452,13 +471,13 @@ if __name__ == '__main__':
     WD=1e-7
 
     
-    dataset = 'lumbar'
+    dataset = 'brain'
     # efficientnetb4 densenet201
-    base_model = 'efficientnetb4'
-    level = 5
-    epochs=50
-    alpha=0.05
-    GPU=3
+    base_model = 'densenet201'
+    level = 1
+    epochs=500
+    alpha=0.1
+    GPU=1
     
     print("Process ID: ", os.getpid())
 

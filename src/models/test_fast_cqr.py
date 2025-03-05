@@ -21,6 +21,7 @@ from glob import glob
 import statistics
 import math
 import load_trained_models
+from data_generator_brain import BrainDatasetTest, BrainDatasetVal 
 
 
     
@@ -141,8 +142,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
+    dataset = 'brain'
     iters = 20
-    level = 5
+    level = 1
     alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
@@ -151,15 +153,21 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
+    if dataset == 'brain':
+            checkpoint = torch.load(f'{models_dir}/{base_model}_{dataset}_L1_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
+    else:
+        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"epoch: {checkpoint['epoch']}")
     
     batch_size = 64
 
-
-    data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
-    data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+    if dataset =='brain':
+        data_set_valid_original = BrainDatasetVal(model=base_model)
+        data_set_test_original = BrainDatasetTest(model=base_model)
+    else:
+        data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
+        data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
     
     assert len(data_set_valid_original) > 0
     assert len(data_set_test_original) > 0
@@ -174,10 +182,10 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     
     # save arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr"
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
-    np.save(f'{results_dir}/lumbar_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
     
     
     
@@ -256,7 +264,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     # Define the output file path
     output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
-    output_file = f"lumbar_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
+    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
 
     # Open the file in append mode
     with open(f'{output_dir}/{output_file}', "w") as f:
@@ -279,8 +287,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
                  
         # Print and save additional info
-        print(f"lumbar cqr, {base_model}, {alpha}, {level}")
-        f.write(f"lumbar cqr, {base_model}, {alpha}, {level}\n")
+        print(f"{dataset} cqr, {base_model}, {alpha}, {level}")
+        f.write(f"{dataset} cqr, {base_model}, {alpha}, {level}\n")
     
   
 def get_float(x):

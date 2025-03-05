@@ -95,3 +95,6 @@ target/
 src/models/data/data
 src/models/data/data.zip
 venv/
+
+src/models/data/Task01_BrainTumour
+src/models/data/BrainTumourPixels
