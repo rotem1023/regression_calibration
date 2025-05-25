@@ -33,7 +33,7 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 
     s_t = torch.abs(target_calib-mu_calib) / sd_calib
     if gc:
-        S = (s_t).mean().sqrt()
+        S = (s_t**2).mean().sqrt()
         if alpha == 0.1:
             q = 1.64485 * S.item()
         elif alpha == 0.05:
@@ -49,8 +49,8 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 # CP/GC prediction
 
 def calc_stats(q, target, mu, sd):
-    lower = mu - q * sd
-    upper = mu + q * sd
+    lower = torch.clip(mu - q * sd, 0, 1)
+    upper = torch.clip(mu + q * sd, 0, 1)
     length = torch.mean(abs(upper - lower))
     coverage = avg_cov(lower, upper, target)
     return length, coverage
@@ -134,27 +134,27 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
-    dataset = 'brain'
+    dataset = 'lumbar'
     iters = 20
     level = 1
     alpha = 0.05
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
-    model = BreastPathQModel(base_model, out_channels=1).to(device)
+    model = BreastPathQModel(base_model, out_channels=2).to(device)
 
     # TODO: load checkpoint 
     # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
     # TODO fix it 
     if dataset == 'brain':
-        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_{dataset}_best.pth.tar')
+        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_{dataset}_best.pth.tar', map_location=device)
     else:
-        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best.pth.tar', map_location=device)
+        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"epoch: {checkpoint['epoch']}")
     

@@ -26,18 +26,18 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'efficientnetb4',
+def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'brain',
+          dataset = 'lumbar',
           batch_size=4,
           init_lr=0.001,
-          epochs=500,
+          epochs=100,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=2,
-          level=1):
+          gpu=0,
+          level=4):
     print("Current PID:", os.getpid())
 
 
@@ -144,7 +144,7 @@ def train(base_model= 'efficientnetb4',
         valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size, shuffle=True)
     elif dataset == 'lumbar':
         in_channels = 3
-        out_channels = 1
+        out_channels = 2
         pretrained = True
 
         
@@ -267,7 +267,7 @@ def train(base_model= 'efficientnetb4',
             print("lr =", optimizer_net.param_groups[0]['lr'])
             for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
                 data, targets = data.to(device), targets.to(device)
-                targets = targets.unsqueeze(-1)
+                # targets = targets.unsqueeze(-1)
                 optimizer_net.zero_grad()
                 mu, logvar, _ = model(data, dropout=True)
                 loss = nll_criterion(mu, logvar, targets).to(device)
@@ -312,7 +312,7 @@ def train(base_model= 'efficientnetb4',
             with torch.no_grad():
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
-                    targets = targets.unsqueeze(-1)
+                    # targets = targets.unsqueeze(-1)
                     mu, logvar, _ = model(data, dropout=True)
                     loss = nll_criterion(mu, logvar, targets).to(device)
                     epoch_valid_loss.append(loss.item())
@@ -353,7 +353,7 @@ def train(base_model= 'efficientnetb4',
 
             if is_best:
                 os.makedirs('./snapshots', exist_ok=True)
-                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best.pth.tar"
+                filename = f"./snapshots/{base_model}_{likelihood}_{dataset_name}_best_dims.pth.tar"
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
