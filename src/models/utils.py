@@ -48,10 +48,15 @@ def distance_loss(predicted_distances, y, y_hat):
 
     return loss_d_plus + loss_d_minus
 
-def nll_criterion_gaussian(mu, logvar, target, reduction='mean'):
+def nll_criterion_gaussian_one_dim(mu, logvar, target, reduction='mean'):
     # loss = (torch.exp(-logvar) * torch.pow(target-mu, 2) + logvar)
     loss = torch.exp(-logvar) * torch.pow(target-mu, 2).mean(dim=1, keepdim=True) + logvar
     return loss.mean() if reduction == 'mean' else loss.sum()
+
+def nll_criterion_gaussian(mu, logvar, target, reduction='mean'):
+    # loss = (torch.exp(-logvar) * torch.pow(target-mu, 2) + logvar)
+    loss = torch.exp(-logvar) * torch.pow(target-mu, 2) + logvar
+    return loss.sum(dim =1).mean() if reduction == 'mean' else loss.sum()
 
 
 def nll_criterion_laplacian(mu, logsigma, target, reduction='mean'):

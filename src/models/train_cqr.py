@@ -18,7 +18,7 @@ from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
 from data_generator_brain import BrainDatasetTrain, BrainDatasetVal 
 from data_generator_oct import OCTDataset
-from cqr_model import BreastPathQModel
+from models import BreastPathQModel
 # from models import BreastPathQModel as BreastPathQModelGauss
 from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
@@ -28,7 +28,7 @@ from data_generator_lumbar import LumbarDataset
 torch.backends.cudnn.benchmark = True
 
 
-def compute_coverage_len(y_test, y_lower, y_upper):
+def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
     """ Compute average coverage and length of prediction intervals
 
     Parameters
@@ -49,7 +49,27 @@ def compute_coverage_len(y_test, y_lower, y_upper):
     in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
     coverage = in_the_range / len(y_test) * 100
     avg_length = torch.mean(abs(y_upper - y_lower))
-    return coverage, avg_length
+    return ((y_test >= y_lower) & (y_test <= y_upper)), avg_length
+
+def compute_coverage_len(targets, preds):
+    coverages, lengths = [], []
+    for i in range(targets.ndim):
+        cur_tgrets = targets[:, i]
+        cur_preds = preds[i]
+        y_lower = cur_preds[:, 0]
+        y_upper = cur_preds[:, 1]
+        cur_coverage, cur_length = compute_in_range_len_one_dim(cur_tgrets, y_lower, y_upper)
+        coverages.append(cur_coverage)
+        lengths.append(cur_length)
+
+    overall_cvg = torch.stack(coverages).all(dim=0)
+
+    # Convert boolean result to int (0/1)
+    overall_cvg = overall_cvg.to(dtype=torch.uint8)   
+    
+    coverage = torch.sum(overall_cvg) / len(overall_cvg)
+    length = np.prod(lengths)
+    return coverage * 100, length
 
 
 class AllQuantileLoss(nn.Module):
@@ -80,6 +100,16 @@ class AllQuantileLoss(nn.Module):
         loss : cost function value
 
         """
+        loss = 0.0
+        for i in range(target.ndim):
+            cur_target = target[:, i]
+            cur_prds = preds[i]
+            loss += self.one_dim_loss(cur_prds, cur_target)
+        return loss
+            
+        
+
+    def one_dim_loss(self, preds, target):
         assert not target.requires_grad
         assert preds.size(0) == target.size(0)
         losses = []
@@ -93,15 +123,57 @@ class AllQuantileLoss(nn.Module):
         loss = torch.mean(torch.sum(torch.cat(losses, dim=1), dim=1))
         return loss
 
-
 def pinball_loss(pred, target, gamma=0.9):
-
     loss = 0.0
     for pred_single, target_single in zip(pred, target):
         loss += (target_single - pred_single) * gamma if pred_single < target_single else (pred_single - target_single) * (1.0 - gamma)
     
     return loss
 
+
+def move_to_cpu(tup):
+    """ Move a tuple of tensors to CPU
+
+    Parameters
+    ----------
+    tuple : tuple of tensors
+
+    Returns
+    -------
+    tuple : tuple of tensors on CPU
+
+    """
+    lst =[]
+
+    for i in range(2):
+        t = tup[i]
+        lst.append(t.detach().cpu())
+    return tuple(lst)
+
+
+def cat_tuples(lst):
+    """ Concatenate a list of tuples of tensors
+
+    Parameters
+    ----------
+    lst : list of tuples of tensors
+
+    Returns
+    -------
+    tuple : concatenated tuple of tensors
+
+    """
+    assert len(lst) > 0
+    res = []
+    dims = len(lst[0])
+    output = []
+    for i in range(dims):
+        cur_dim = []
+        for j in range(len(lst)):
+            tup = lst[j][i]
+            cur_dim.append(tup)
+        output.append(torch.cat(cur_dim, dim=0))
+    return output
 
 def train(base_model,
           dataset,
@@ -116,7 +188,7 @@ def train(base_model,
           gamma=0.5, 
           level = 1,
           alpha= 0.1):
-          
+
     qlow = alpha/2
     qhigh = 1-alpha/2
     
@@ -233,6 +305,7 @@ def train(base_model,
         out_channels = 2
         pretrained = True
 
+
         
 
         data_set_train = LumbarDataset(level=level, mode='train', augment=True, scale=0.5)
@@ -296,7 +369,7 @@ def train(base_model,
         assert False
 
 
-    model = BreastPathQModel(base_model, out_channels=2).to(device)
+    model = BreastPathQModel(base_model, out_channels=out_channels).to(device)
     # models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
 
     # checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_new.pth.tar', map_location=device)
@@ -321,7 +394,7 @@ def train(base_model,
     print("ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)")
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)
     
-    loss_func = AllQuantileLoss([qlow, qhigh])
+    loss_func = AllQuantileLoss([qlow/out_channels, qhigh/out_channels])
     # loss_func = nn.MSELoss()
 
     print("")
@@ -347,19 +420,14 @@ def train(base_model,
             for batch_idx, (data, targets) in enumerate(tqdm(train_loader)):
                 data, targets = data.to(device), targets.to(device)
                 optimizer_net.zero_grad()
-                if use_gauss_model:
-                    # t_low, t_high, _ = model(data, dropout=True)
-                    # t = torch.cat((t_low, t_high), -1)
-                    t  = model(data, dropout=True)
-                else:
-                    t  = model(data, dropout=True)
+                t  = model(data, dropout=True)
                 loss = loss_func(t, targets).to(device)
                 loss.backward()
                 epoch_train_loss.append(loss.item())
                 optimizer_net.step()
 
                 targets_train.append(targets.detach().cpu())
-                t_train.append(t.detach().cpu())
+                t_train.append(move_to_cpu(t))
 
                 writer.add_scalar('train/loss', loss.item(), batch_counter)
                 batch_counter += 1
@@ -369,7 +437,7 @@ def train(base_model,
             lr_scheduler_net.step(epoch_train_loss)
 
             targets_train = torch.cat(targets_train, dim=0)
-            t_train = torch.cat(t_train, dim=0)
+            t_train = cat_tuples(t_train)
 
             model.eval()
             epoch_valid_loss = []
@@ -379,29 +447,23 @@ def train(base_model,
             with torch.no_grad():
                 for batch_idx, (data, targets) in enumerate(tqdm(valid_loader)):
                     data, targets = data.to(device), targets.to(device)
-                    if use_gauss_model:
-                        # t_low, t_high, _ = model(data, dropout=True)
-                        # t = torch.cat((t_low, t_high), -1)
-                        t  = model(data, dropout=True)
-                    else:
-                        t  = model(data, dropout=True)
+                    t  = model(data, dropout=True)
                     loss_valid = loss_func(t, targets).to(device)
                     epoch_valid_loss.append(loss_valid.item())
 
                     targets_valid.append(targets.detach().cpu())
-                    t_valid.append(t.detach().cpu())
+                    t_valid.append(move_to_cpu(t))
 
                     writer.add_scalar('valid/loss', loss_valid.item(), batch_counter_valid)
                     batch_counter_valid += 1
+
                     
 
             epoch_valid_loss = np.mean(epoch_valid_loss)
             targets_valid = torch.cat(targets_valid, dim=0)
-            t_valid = torch.cat(t_valid, dim=0)
+            t_valid = cat_tuples(t_valid)
             
-            y_lower = t_valid[:,0]
-            y_upper = t_valid[:,1]
-            coverage, avg_length = compute_coverage_len(targets_valid, y_lower, y_upper)
+            coverage, avg_length = compute_coverage_len(preds=t_valid, targets=targets_valid)
             
             if (coverage >= target_coverage) and (avg_length < best_avg_length):
                 best_avg_length = avg_length
@@ -423,7 +485,7 @@ def train(base_model,
 
             if is_best:
                 # filename = f"./snapshots/{base_model}_{likelihood}_{dataset}_best.pth.tar"
-                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_best.pth.tar'
+                filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_dims_best.pth.tar'
                 print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}")
                 torch.save({
                     'epoch': e,
@@ -438,8 +500,7 @@ def train(base_model,
             if optimizer_net.param_groups[0]['lr'] < 1e-7:
                 break
 
-            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new.pth.tar'
-            print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}. filename: {filename}")
+            filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_dims.pth.tar'
             torch.save({
                     'epoch': e,
                     'state_dict': model.state_dict(),
@@ -450,7 +511,7 @@ def train(base_model,
                     'avg_len': avg_length
                 }, filename)
     except KeyboardInterrupt:
-        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_new.pth.tar'
+        filename = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr/{base_model}_{dataset}_L{level}_alpha_{alpha}_cqr_dims.pth.tar'
         print(f"Saving best weights so far with val_loss: {valid_losses[-1]:.5f}, filename: {filename}")
         torch.save({
                     'epoch': e,
@@ -471,12 +532,12 @@ if __name__ == '__main__':
     WD=1e-7
 
     
-    dataset = 'brain'
+    dataset = 'lumbar'
     # efficientnetb4 densenet201
     base_model = 'densenet201'
     level = 1
     epochs=500
-    alpha=0.1
+    alpha=0.05
     GPU=1
     
     print("Process ID: ", os.getpid())

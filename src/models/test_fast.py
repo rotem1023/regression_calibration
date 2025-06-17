@@ -21,7 +21,8 @@ from glob import glob
 import statistics
 import math
 from data_generator_brain import BrainDatasetTest, BrainDatasetVal 
-
+from functools import reduce
+from operator import mul
 
 
     
@@ -30,10 +31,16 @@ from data_generator_brain import BrainDatasetTest, BrainDatasetVal
 # CP
 
 def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
+    delta = target_calib - mu_calib
 
-    s_t = torch.abs(target_calib-mu_calib) / sd_calib
+    # Compute Σ(x)^(-1) under diagonal assumption → just 1 / sd
+    inv_cov_diag = 1.0 / sd_calib  # [N, D]
+
+    # Compute Mahalanobis distance: (delta^T @ Σ^{-1} @ delta), simplified for diagonal
+    s_t = torch.sum(delta * inv_cov_diag * delta, dim=1) 
+    # s_t = torch.sum(torch.abs(target_calib-mu_calib), dim =1) / sd_calib
     if gc:
-        S = (s_t**2).mean().sqrt()
+        S = (s_t).mean().sqrt()
         if alpha == 0.1:
             q = 1.64485 * S.item()
         elif alpha == 0.05:
@@ -49,18 +56,81 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 # CP/GC prediction
 
 def calc_stats(q, target, mu, sd):
-    lower = torch.clip(mu - q * sd, 0, 1)
-    upper = torch.clip(mu + q * sd, 0, 1)
-    length = torch.mean(abs(upper - lower))
-    coverage = avg_cov(lower, upper, target)
-    return length, coverage
+    dist_true = torch.sum(torch.abs(target - mu), dim =1) 
+    dist_pred = q * sd
+    area = avg_ellipsoid_volume(dist_pred)
+    coverage = avg_cov_ellipsoid(q, target, mu, sd)
+    return area, coverage
 
-def avg_cov(lower, upper, target):
-    in_the_range = torch.sum((target  >= lower) & (target  <= upper)).item()
+def avg_cov_ellipsoid(q, target, mu, sd):
+    """
+    Efficiently compute the average ellipsoid coverage.
+    
+    Parameters:
+        q (float): Threshold for ellipsoid inclusion.
+        target (Tensor): Tensor of shape [N, D] — target points.
+        mu (Tensor): Tensor of shape [N, D] — mean of each ellipsoid.
+        sd (Tensor): Tensor of shape [N, D] — diagonal std for each ellipsoid.
+    
+    Returns:
+        float: Percentage of points within the ellipsoid.
+    """
+    # Compute squared Mahalanobis distance for all points in batch
+    dists = torch.sum(((target - mu) ** 2) / sd, dim=1)  # Shape: [N]
+    
+    # Check how many distances are within the threshold q
+    within = (dists <= q).float()
+    
+    # Compute the percentage
+    return within.mean().item() * 100
+        
+
+def avg_cov(dist_true, dist_pred, target):
+    in_the_range = torch.sum(dist_true <= dist_pred).item()
     coverage = in_the_range / len(target) * 100
     return coverage
 
+def ellipsoid_volumes(radii_batch):
+    """
+    Calculate volumes of a batch of k-dimensional ellipsoids.
+    
+    Parameters:
+        radii_batch (Tensor): Shape [N, D], where each row is a radii vector.
+    
+    Returns:
+        Tensor: Shape [N], volume for each ellipsoid.
+    """
+    N, D = radii_batch.shape
+    volume_unit_ball = math.pi ** (D / 2) / math.gamma(D / 2 + 1)
+    prod_radii = torch.prod(radii_batch, dim=1)  # Shape: [N]
+    return volume_unit_ball * prod_radii
 
+def avg_ellipsoid_volume(dist_pred):
+    """
+    Compute average ellipsoid volume for a batch of radii vectors.
+    
+    Parameters:
+        dist_pred (Tensor): Shape [N, D] — batch of radii vectors.
+    
+    Returns:
+        float: Average volume.
+    """
+    volumes = ellipsoid_volumes(dist_pred)
+    return volumes.mean().item()
+
+
+
+def batch_diag(diag_elements):
+    """
+    Convert [n, D] tensor to [n, D, D] diagonal matrices.
+    
+    Parameters:
+        diag_elements (Tensor): Shape [n, D], each row is the diagonal of a matrix.
+    
+    Returns:
+        Tensor: Shape [n, D, D], batch of diagonal matrices.
+    """
+    return torch.diag_embed(diag_elements)
 
 def get_arrays(data_loader, model, device):
     y_p_s = []
@@ -72,7 +142,7 @@ def get_arrays(data_loader, model, device):
         for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
 
-            y_p, logvar, var_bayesian = model(data, dropout=False, mc_dropout=False, test=False)
+            y_p, logvar, var_bayesian = model(data, dropout=True, mc_dropout=True, test=True)
 
 
             y_p_s.append(y_p.detach())
@@ -81,9 +151,16 @@ def get_arrays(data_loader, model, device):
             targets_s.append(target.detach())
 
 
-                            
+
+
+    targets = torch.cat(targets_s).cpu()
+    mu = torch.cat(y_p_s, dim=1).clamp(0, 1).permute(1,0,2)
+    mu = mu.mean(dim=1) .cpu()    
+    var = torch.cat(vars_s, dim=0).cpu()
+    logvar = torch.cat(logvars_s, dim=1).permute(1,0,2)
+    logvar = logvar.mean(dim=1).cpu()
                     
-    return torch.cat(y_p_s).cpu(), torch.cat(vars_s).cpu(), torch.cat(logvars_s).cpu(), torch.cat(targets_s).cpu()     
+    return mu, var, logvar, targets    
     
 import numpy as np
 import torch
@@ -134,13 +211,13 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:3")
     dataset = 'lumbar'
     iters = 20
-    level = 1
+    level = 5
     alpha = 0.05
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
@@ -179,7 +256,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
     
     # save test arrays
-    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/"
+    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/dims"
     
     np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
     np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
@@ -238,14 +315,14 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
                     
         # validation set   
-        y_p_calib = y_p_calib.clamp(0, 1).unsqueeze(1)
-        mu_calib = y_p_calib.mean(dim=1)
+        y_p_calib = y_p_calib.clamp(0, 1)
+        mu_calib = y_p_calib
         var_calib = vars_calib
         logvars_calib = logvars_calib
-        logvar_calib = logvars_calib.mean(dim=1).unsqueeze(1)
-        var_calib  = logvar_calib.exp()
+        logvar_calib = logvars_calib
+        var_calib  = logvars_calib.exp()
         sd_calib = var_calib.sqrt()
-        target_calib = targets_calib.unsqueeze(1)
+        target_calib = targets_calib
 
 
 
@@ -253,13 +330,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
         # test set
                                  
-        y_p_test = y_p_test.clamp(0, 1).unsqueeze(1)
-        mu_test = y_p_test.mean(dim=1)
+        y_p_test = y_p_test.clamp(0, 1)
+        mu_test = y_p_test
         logvars_test = logvars_test
-        logvar_test = logvars_test.mean(dim=1).unsqueeze(1)
+        logvar_test = logvars_test
         var_test = logvar_test.exp()
         sd_test = var_test.sqrt()
-        target_test = targets_test.unsqueeze(1)
+        target_test = targets_test
             
         q = calc_optimal_q(target_calib, mu_calib, sd_calib, alpha)
         
@@ -301,8 +378,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
 
     # Define the output file path
-    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results'
-    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}_after.txt"
+    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/dims'
+    output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
 
     # Open the file in append mode
     with open(f'{output_dir}/{output_file}', "w") as f:
