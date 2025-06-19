@@ -28,7 +28,7 @@ torch.backends.cudnn.benchmark = True
 
 def train(base_model= 'densenet201',
           likelihood= 'gaussian',
-          dataset = 'lumbar',
+          dataset = 'oct',
           batch_size=4,
           init_lr=0.001,
           epochs=100,
@@ -37,7 +37,7 @@ def train(base_model= 'densenet201',
           lr_patience=20,
           weight_decay=1e-8,
           gpu=0,
-          level=4):
+          level=2):
     print("Current PID:", os.getpid())
 
 
@@ -167,9 +167,9 @@ def train(base_model= 'densenet201',
 
         data_dir = '/media/fastdata/laves/oct_data_needle/data'
 
-        data_set_train = OCTDataset(data_dir=data_dir, augment=True, resize_to=resize_to, preload=True)
-        data_set_valid = OCTDataset(data_dir=data_dir, augment=False, preloaded_data_from=data_set_train)
-
+        data_set_train = OCTDataset(group='train', augment=True, resize_to=resize_to)
+        data_set_valid = OCTDataset(group='valid', augment=False, resize_to=resize_to)
+        
         assert len(data_set_train) > 0
         assert len(data_set_valid) > 0
 
@@ -181,13 +181,11 @@ def train(base_model= 'densenet201',
         # torch.save(valid_indices, f'./{dataset}_valid_indices.pth')
         # torch.save(test_indices, f'./{dataset}_test_indices.pth')
 
-        train_indices = torch.load(f'./data_indices/{dataset}_train_indices.pth')
-        valid_indices = torch.load(f'./data_indices/{dataset}_valid_indices.pth')
+        train_indices = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/data_indices/{dataset}_train_indices.pth')
+        valid_indices = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/data_indices/{dataset}_valid_indices.pth')
 
-        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(train_indices))
-        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(valid_indices))
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=32, shuffle=True)
     elif dataset == 'brain':
         in_channels = 3
         out_channels = 1

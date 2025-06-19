@@ -65,7 +65,7 @@ class BreastPathQModel(torch.nn.Module):
         self._fc_mu2 = torch.nn.Linear(fc_in_features, out_channels)
         self._fc_logvar1 = torch.nn.Linear(fc_in_features, fc_in_features)
         # self._fc_logvar2 = torch.nn.Linear(fc_in_features, out_channels)
-        self._fc_logvar2 = torch.nn.Linear(fc_in_features, 1)
+        self._fc_logvar2 = torch.nn.Linear(fc_in_features, out_channels)
         # self._fc_logvar2 = torch.nn.Linear(fc_in_features, out_channels=2)
 
         if 'resnet' in base_model:

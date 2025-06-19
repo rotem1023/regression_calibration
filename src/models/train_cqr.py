@@ -18,7 +18,7 @@ from data_generator_boneage import BoneAgeDataset
 from data_generator_endovis import EndoVisDataset
 from data_generator_brain import BrainDatasetTrain, BrainDatasetVal 
 from data_generator_oct import OCTDataset
-from models import BreastPathQModel
+from cqr_model import BreastPathQModel
 # from models import BreastPathQModel as BreastPathQModelGauss
 from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
@@ -535,8 +535,8 @@ if __name__ == '__main__':
     dataset = 'lumbar'
     # efficientnetb4 densenet201
     base_model = 'densenet201'
-    level = 1
-    epochs=500
+    level = 3
+    epochs=150
     alpha=0.05
     GPU=1
     

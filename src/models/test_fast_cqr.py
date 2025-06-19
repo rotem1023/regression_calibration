@@ -16,7 +16,7 @@ from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
-from cqr_model import BreastPathQModel
+from models import BreastPathQModel
 from glob import glob
 import statistics
 import math
@@ -79,15 +79,20 @@ def get_arrays(data_loader, model, device):
         for batch_idx, (data, target) in enumerate(tqdm(data_loader)):
             data, target = data.to(device), target.to(device)
 
-            t_p = model(data, dropout=False, mc_dropout=False, test=False)
+            t_p = model(data, dropout=True, mc_dropout=True, test=True)
 
-            t_p_s.append(t_p.detach())
+            t_p_s.append(t_p)
 
             targets_s.append(target.detach()) 
+            if batch_idx > 0: break
 
+        targets = torch.cat(targets_s).cpu()
+        t_p_calib = torch.cat(t_p_s, dim=1).clamp(0, 1).permute(1,0,2)
+        mu_calib = t_p_calib.mean(dim=1)
+        target_calib = torch.cat(targets_calib, dim=0)
                             
                     
-    return torch.cat(t_p_s), torch.cat(targets_s)     
+    return torch.cat(t_p_s), targets    
     
 import numpy as np
 import torch
@@ -141,11 +146,11 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:0")
-    dataset = 'brain'
+    device = torch.device("cuda:2")
+    dataset = 'lumbar'
     iters = 20
     level = 1
-    alpha = 0.05
+    alpha = 0.1
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
@@ -156,7 +161,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     if dataset == 'brain':
             checkpoint = torch.load(f'{models_dir}/{base_model}_{dataset}_L1_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
     else:
-        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
+        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims_best.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"epoch: {checkpoint['epoch']}")
     
