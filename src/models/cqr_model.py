@@ -112,6 +112,6 @@ class BreastPathQModel(torch.nn.Module):
         t2 = y_temp_accu.mean(dim=0)
 
         if test:
-            return x_temp_accu.clamp(0, 1)
+            return x_temp_accu.clamp(0, 1), y_temp_accu.clamp(0, 1)
         else:
             return t1, t2

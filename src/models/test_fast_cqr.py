@@ -16,7 +16,7 @@ from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
-from models import BreastPathQModel
+from cqr_model import BreastPathQModel
 from glob import glob
 import statistics
 import math
@@ -31,8 +31,8 @@ from data_generator_brain import BrainDatasetTest, BrainDatasetVal
 # CQR
 
 def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
-    y_lower = mu_calib[:,0].unsqueeze(1)
-    y_upper = mu_calib[:,-1].unsqueeze(1)
+    y_lower = mu_calib[:,0]
+    y_upper = mu_calib[:,-1]
     error_low = y_lower - target_calib
     error_high = target_calib - y_upper
     err = torch.maximum(error_high, error_low)
@@ -41,26 +41,72 @@ def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
     index = min(max(index, 0), err.shape[0] - 1)
     q = err[index]
     
-    return q
+    return q.item()
 
 
-def calc_stats(q, target, mu):
-    length = torch.mean(abs((mu[:, 1] + q) - (mu[:, 0] - q)))
-    coverage = avg_cov(mu, q, target.unsqueeze(1).mean(dim=1))
-    print(f'Length: {length}, Coverage: {coverage}')
-    return length, coverage
 
-def get_scaler_conformal(target_calib, mu_calib, alpha):
+def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
+    """ Compute average coverage and length of prediction intervals
+
+    Parameters
+    ----------
+
+    y_test : numpy array, true labels (n)
+    y_lower : numpy array, estimated lower bound for the labels (n)
+    y_upper : numpy array, estimated upper bound for the labels (n)
+
+    Returns
+    -------
+
+    coverage : float, average coverage
+    avg_length : float, average length
+
+    """
+    y_test = y_test.unsqueeze(1).mean(dim=1)
+    in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
+    coverage = in_the_range / len(y_test) * 100
+    avg_length = torch.mean(abs(y_upper - y_lower))
+    return ((y_test >= y_lower) & (y_test <= y_upper)), avg_length
+
+def compute_coverage_len(targets, preds, q_s):
+    coverages, lengths = [], []
+    for i in range(targets.ndim):
+        cur_tgrets = targets[:, i]
+        cur_preds = preds[i]
+        cur_q = q_s[i]
+        y_lower = cur_preds[:, 0] - cur_q
+        y_upper = cur_preds[:, 1] + cur_q
+        cur_coverage, cur_length = compute_in_range_len_one_dim(cur_tgrets, y_lower, y_upper)
+        coverages.append(cur_coverage)
+        lengths.append(cur_length)
+
+    overall_cvg = torch.stack(coverages).all(dim=0)
+
+    # Convert boolean result to int (0/1)
+    overall_cvg = overall_cvg.to(dtype=torch.uint8)   
+    
+    coverage = torch.sum(overall_cvg) / len(overall_cvg)
+    length = np.prod(lengths)
+    return  length, coverage * 100
+
+def get_scaler_conformal(target, preds, alpha):
     """
     Tune single scaler for the model (using the validation set) with cross-validation on NLL
     """
-        
+    dims = preds.shape[0]
+    actual_alpha = alpha / dims    
     printed_type = 'CQR'
+    q_s = []
+    for i in range(dims):
+        dim_preds = preds[i]
+        dim_target = target[:, i]
+        print(f'Calculating {printed_type} for dim {i}')
+        # Calculate optimal q for this dimension
+        q = calc_optimal_q(dim_target, dim_preds, alpha=actual_alpha)
+        q_s.append(q)
             
     # Calculate optimal q
-    q = calc_optimal_q(target_calib, mu_calib, alpha=alpha)
-    print(f'q: {q}')
-    return q
+    return q_s
 
 def avg_cov(mu, q, target, before=False):
     if before:
@@ -70,6 +116,17 @@ def avg_cov(mu, q, target, before=False):
     coverage = in_the_range / len(target) * 100
     return coverage
 
+
+def create_final_preds(t_p_s):
+    preds = []
+    for i in range(len(t_p_s[0])):
+        dim_preds = []
+        for j in range(len(t_p_s)):
+            dim_preds.append(t_p_s[j][i].detach().cpu())
+        dim_preds = torch.cat(dim_preds, dim=1).clamp(0, 1).permute(1,0,2).mean(dim=1)
+        preds.append(dim_preds)
+    return torch.stack(preds)
+    
 
 
 def get_arrays(data_loader, model, device):
@@ -84,53 +141,48 @@ def get_arrays(data_loader, model, device):
             t_p_s.append(t_p)
 
             targets_s.append(target.detach()) 
-            if batch_idx > 0: break
+
 
         targets = torch.cat(targets_s).cpu()
-        t_p_calib = torch.cat(t_p_s, dim=1).clamp(0, 1).permute(1,0,2)
-        mu_calib = t_p_calib.mean(dim=1)
-        target_calib = torch.cat(targets_calib, dim=0)
+        final_preds = create_final_preds(t_p_s)
                             
                     
-    return torch.cat(t_p_s), targets    
+    return final_preds, targets    
     
 import numpy as np
 import torch
 
 def shuffle_arrays(calib_arrays, test_arrays):
-    """
-    Shuffles calibration and test arrays together, maintaining correspondence across arrays.
+    calib_preds, calib_targets = calib_arrays
+    test_preds, test_targets = test_arrays
 
-    Args:
-        calib_arrays (list of tensors): List of calibration arrays to shuffle.
-        test_arrays (list of tensors): List of test arrays to shuffle.
-        seed (int, optional): Seed for reproducibility. Defaults to None.
+    # Check that shapes match in dimensions
+    assert calib_preds.shape[0] == test_preds.shape[0], "Mismatch in num_dims of prediction arrays"
+    assert calib_preds.shape[2] == 2, "Predictions must have lower and upper bounds"
+    assert calib_targets.shape[1] == test_targets.shape[1], "Mismatch in num_dims of target arrays"
 
-    Returns:
-        tuple: Shuffled calibration arrays, shuffled test arrays.
-    """
-    # if seed is not None:
-    #     np.random.seed(seed)
+    # Concatenate along the num_predictions axis
+    all_preds = np.concatenate([calib_preds, test_preds], axis=1)  # shape: [num_dims, total_preds, 2]
+    all_targets = np.concatenate([calib_targets, test_targets], axis=0)  # shape: [total_preds, num_dims]
 
-    # Combine calib and test arrays
-    combined_arrays = [torch.cat([calib, test], dim=0) for calib, test in zip(calib_arrays, test_arrays)]
-    
-    # Generate shuffle indices
-    total_length = combined_arrays[0].shape[0]
-    shuffle_indices = np.random.permutation(total_length)
+    # Shuffle indices
+    total_preds = all_preds.shape[1]
+    indices = np.arange(total_preds)
+    np.random.shuffle(indices)
 
-    # Apply shuffle indices
-    shuffled_arrays = [arr[shuffle_indices] for arr in combined_arrays]
+    # Apply shuffle
+    shuffled_preds = all_preds[:, indices, :]
+    shuffled_targets = all_targets[indices]
 
-    # Split back into calib and test arrays
-    split_index = len(calib_arrays[0])
-    calib_shuffled = [arr[:split_index] for arr in shuffled_arrays]
-    test_shuffled = [arr[split_index:] for arr in shuffled_arrays]
+    # Split back
+    calib_size = calib_preds.shape[1]
+    new_calib_preds = shuffled_preds[:, :calib_size, :]
+    new_test_preds = shuffled_preds[:, calib_size:, :]
 
-    return calib_shuffled, test_shuffled
-   
-    
-    
+    new_calib_targets = shuffled_targets[:calib_size]
+    new_test_targets = shuffled_targets[calib_size:]
+
+    return (torch.from_numpy(new_calib_preds), torch.from_numpy(new_calib_targets)), (torch.from_numpy(new_test_preds), torch.from_numpy(new_test_targets))   
 
 def main():
     print("Current PID:", os.getpid())
@@ -150,7 +202,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     dataset = 'lumbar'
     iters = 20
     level = 1
-    alpha = 0.1
+    alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
@@ -161,7 +213,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     if dataset == 'brain':
             checkpoint = torch.load(f'{models_dir}/{base_model}_{dataset}_L1_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
     else:
-        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims_best.pth.tar', map_location=device)
+        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims.pth.tar', map_location=device)
     model.load_state_dict(checkpoint['state_dict'])
     print(f"epoch: {checkpoint['epoch']}")
     
@@ -186,7 +238,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     y_p_test_original, targets_test_original = get_arrays(test_loader, model, device)
     
     # save arrays
-    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr"
+    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr/dims"
+    os.makedirs(results_dir, exist_ok=True)
     np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
     np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
     np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
@@ -227,7 +280,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
         # validation set   
         t_p_calib = t_p_calib.clamp(0, 1)
-        target_calib = targets_calib.unsqueeze(1)
+        target_calib = targets_calib
 
             
 
@@ -239,7 +292,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         # test set
                                  
         t_p_test = t_p_test.clamp(0, 1)
-        target_test = targets_test.unsqueeze(1)
+        target_test = targets_test
 
 
 
@@ -249,9 +302,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
         q = get_scaler_conformal(target_calib, t_p_calib, alpha)
         print("validation set")
-        length_val, coverage_val = calc_stats(q, target_calib, t_p_calib)
+        length_val, coverage_val = compute_coverage_len(target_calib, t_p_calib, q)
         print("test set")
-        length_test, coverage_test = calc_stats(q, target_test, t_p_test)    
+        length_test, coverage_test = compute_coverage_len(target_test, t_p_test, q)    
     
         
         q_all.append(get_float(q))
@@ -268,14 +321,14 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     print(f"test coverage's {cov_test_sets}")
 
     # Define the output file path
-    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr'
+    output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr/dims'
     output_file = f"{dataset}_dataset_model_{base_model}_alpha_{alpha}_level_{level}_iterations_{iters}.txt"
 
     # Open the file in append mode
     with open(f'{output_dir}/{output_file}', "w") as f:
         # Print and save CP metrics
-        print(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}')
-        f.write(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}\n')
+        # print(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}')
+        # f.write(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}\n')
         
         print(f'avg_len valid mean: {statistics.mean(len_valid_sets)}, avg_len valid std: {statistics.stdev(len_valid_sets)}')
         f.write(f'avg_len valid  mean: {statistics.mean(len_valid_sets)}, avg_len valid std: {statistics.stdev(len_valid_sets)}\n')
