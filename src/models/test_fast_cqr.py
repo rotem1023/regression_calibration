@@ -201,7 +201,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     device = torch.device("cuda:2")
     dataset = 'lumbar'
     iters = 20
-    level = 1
+    level = 2
     alpha = 0.05
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
