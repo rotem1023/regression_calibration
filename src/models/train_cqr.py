@@ -534,11 +534,11 @@ if __name__ == '__main__':
     
     dataset = 'lumbar'
     # efficientnetb4 densenet201
-    base_model = 'efficientnetb4'
-    level = 5
+    base_model = 'densenet201'
+    level = 3
     epochs=150
-    alpha=0.05
-    GPU=0
+    alpha=0.1
+    GPU=3
     
     print("Process ID: ", os.getpid())
 

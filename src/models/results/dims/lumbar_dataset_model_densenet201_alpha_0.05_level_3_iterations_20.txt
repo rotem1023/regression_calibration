@@ -1,12 +1,16 @@
-q CP mean: 0.17483877763152122, q CP std: 0.006569978996600879
-avg_len CP mean: 0.00014831361622782424, avg_len CP std: 1.073068162539571e-05
-avg_cov CP mean: 95.02028435468674, avg_cov CP std: 0.7527979793201365
-q GC mean: 0.4890250034483671, q GC std: 0.009403571476231054
-avg_len GC mean: 0.0011593309114687144, avg_len GC std: 4.338477032871663e-05
-avg_cov GC mean: 99.44726139307022, avg_cov GC std: 0.12626715256716972
+q CP mean: 0.17676655501127242, q CP std: 0.006254513990670862
+avg_size CP mean: 0.00015157517409534194, avg_size CP std: 1.0097630856817877e-05
+avg_cov CP mean: 95.10141998529434, avg_cov CP std: 0.8003417984158588
+q GC mean: 0.49108989320620894, q GC std: 0.010731573149415318
+avg_szie GC mean: 0.0011692554340697824, avg_size GC std: 4.963798030255262e-05
+avg_cov GC mean: 99.40669357776642, avg_cov GC std: 0.13576960298336133
+avg_size Bonf mean: 0.021765981614589692, avg_size Bonf std: 0.000729925726119934
+avg_cov Bonf mean: 95.77079162597656, avg_cov Bonf std: 0.7050420445945713
 Validation results:
-avg_len validation mean: 0.00014742155399289915, avg_len validation std: 1.1621973849994962e-05
-avg_cov validation mean: 95.06846070289612, avg_cov validation std: 0.0225292336283968
-avg_len validation mean GC: 0.0011519882420543582, avg_len validation std GC: 4.733097023295637e-05
-avg_cov validation mean GC: 99.52079176902771, avg_cov validation std GC: 0.11804026508353163
+avg_size validation mean: 0.00015071131492732092, avg_size validation std: 1.118887820274677e-05
+avg_cov validation mean: 95.07353186607361, avg_cov validation std: 0.018578081982819485
+avg_size validation mean GC: 0.0011621686920989306, avg_size validation std GC: 5.373497479584673e-05
+avg_cov validation mean GC: 99.52586233615875, avg_cov validation std GC: 0.13393795616504403
+avg_size validation mean Bonf: 0.021765981614589692, avg_size validation std Bonf: 0.000729925726119934
+avg_cov validation mean Bonf: 95.590771484375, avg_cov validation std Bonf: 0.1059541094805276
 lumbar, densenet201, 0.05, 3

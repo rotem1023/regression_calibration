@@ -1,12 +1,17 @@
-q CP mean: 0.18637029379606246, q CP std: 0.004602116566147377
-avg_len CP mean: 0.0002969172812299803, avg_len CP std: 1.45386628569829e-05
-avg_cov CP mean: 90.00000029802322, avg_cov CP std: 0.8821047939794517
-q GC mean: 0.5082806092540174, q GC std: 0.011524059499651051
-avg_len GC mean: 0.002208710799459368, avg_len GC std: 0.00010821111061688396
-avg_cov GC mean: 98.21754574775696, avg_cov GC std: 0.28651631747098905
+q CP mean: 3.986856687068939, q CP std: 0.09482490351322677
+avg_size CP mean: 0.03406590055674315, avg_size CP std: 0.0009409135352459398
+avg_cov CP mean: 90.18509089946747, avg_cov CP std: 0.9939084175009675
+q GC mean: 2.281559658978581, q GC std: 0.0543697537361002
+avg_szie GC mean: 0.01949635548517108, avg_size GC std: 0.0005901199940299453
+avg_cov GC mean: 75.25608509778976, avg_cov GC std: 0.9784005241839033
+q Bonf mean: [1.7977351427078248, 1.8566803693771363], q Bonf std: [0.0316892141839337, 0.039999884534986346]
+avg_size Bonf mean: 0.036444208770990374, avg_size Bonf std: 0.0011453122632496743
+avg_cov Bonf mean: 91.11054725646973, avg_cov Bonf std: 0.875404444072904
 Validation results:
-avg_len validation mean: 0.0002980515419039875, avg_len validation std: 1.5832287612271036e-05
+avg_size validation mean: 0.034187876246869565, avg_size validation std: 0.0008824726693692273
 avg_cov validation mean: 90.04817605018616, avg_cov validation std: 0.0225292336283968
-avg_len validation mean GC: 0.002216239972040057, avg_len validation std GC: 9.861699559216377e-05
-avg_cov validation mean GC: 98.2454365491867, avg_cov validation std GC: 0.19974709144911382
+avg_size validation mean GC: 0.0195632541552186, avg_size validation std GC: 0.00044440093242892553
+avg_cov validation mean GC: 75.38032412528992, avg_cov validation std GC: 0.8152699575015261
+avg_size validation mean Bonf: 0.036444208770990374, avg_size validation std Bonf: 0.0011453122632496743
+avg_cov validation mean Bonf: 91.05223007202149, avg_cov validation std Bonf: 0.12794497217052914
 lumbar, efficientnetb4, 0.1, 4

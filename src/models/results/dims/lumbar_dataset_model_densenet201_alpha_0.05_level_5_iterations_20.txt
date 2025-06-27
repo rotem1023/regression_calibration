@@ -1,12 +1,16 @@
-q CP mean: 0.21560644656419753, q CP std: 0.00590357928315
-avg_len CP mean: 0.00030222684290492907, avg_len CP std: 1.6622290829656565e-05
-avg_cov CP mean: 95.04063040018082, avg_cov CP std: 0.4730737704442813
-q GC mean: 0.5203841904339194, q GC std: 0.0071130649673502916
-avg_len GC mean: 0.0017595043173059821, avg_len GC std: 4.452966941512615e-05
-avg_cov GC mean: 99.14931505918503, avg_cov GC std: 0.18486884503121703
+q CP mean: 0.21217527985572815, q CP std: 0.007004690785593325
+avg_size CP mean: 0.00029220400174381214, avg_size CP std: 1.911142071297435e-05
+avg_cov CP mean: 94.91366118192673, avg_cov CP std: 0.5571452093450744
+q GC mean: 0.5178994792495966, q GC std: 0.006968987162817615
+avg_szie GC mean: 0.001739427010761574, avg_size GC std: 4.39744208286051e-05
+avg_cov GC mean: 99.06043648719788, avg_cov GC std: 0.1808787658388502
+avg_size Bonf mean: 0.029766233265399934, avg_size Bonf std: 0.0011158567919162317
+avg_cov Bonf mean: 95.51803054809571, avg_cov Bonf std: 0.5280207601819553
 Validation results:
-avg_len validation mean: 0.0002996664072270505, avg_len validation std: 1.646329104682261e-05
-avg_cov validation mean: 95.07110118865967, avg_cov validation std: 0.011355459194361095
-avg_len validation mean GC: 0.0017448825296014548, avg_len validation std GC: 5.336551481658512e-05
-avg_cov validation mean GC: 99.10868346691132, avg_cov validation std GC: 0.15054710598746118
+avg_size validation mean: 0.0002900334671721794, avg_size validation std: 1.9471780505959523e-05
+avg_cov validation mean: 95.06094455718994, avg_cov validation std: 0.022561009698394537
+avg_size validation mean GC: 0.0017265588277950883, avg_size validation std GC: 5.1252866257971974e-05
+avg_cov validation mean GC: 99.1137632727623, avg_cov validation std GC: 0.17397302889181915
+avg_size validation mean Bonf: 0.029766233265399934, avg_size validation std Bonf: 0.0011158567919162317
+avg_cov validation mean Bonf: 95.54342308044434, avg_cov validation std Bonf: 0.08854127985564741
 lumbar, densenet201, 0.05, 5

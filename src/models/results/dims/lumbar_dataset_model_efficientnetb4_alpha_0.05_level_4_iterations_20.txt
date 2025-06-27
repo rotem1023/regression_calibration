@@ -1,12 +1,16 @@
-q CP mean: 0.27473118901252747, q CP std: 0.007536405297182575
-avg_len CP mean: 0.000688170365174301, avg_len CP std: 3.863464864467815e-05
-avg_cov CP mean: 95.17748415470123, avg_cov CP std: 0.5373933661209376
-q GC mean: 0.601509266003251, q GC std: 0.013718985440475258
-avg_len GC mean: 0.003298475861083716, avg_len GC std: 0.00016210021344912652
-avg_cov GC mean: 98.58012169599533, avg_cov GC std: 0.21764613114870002
+q CP mean: 0.27870624512434006, q CP std: 0.008962366420433677
+avg_size CP mean: 0.0006643548025749624, avg_size CP std: 4.291947136217897e-05
+avg_cov CP mean: 95.09634882211685, avg_cov CP std: 0.6628320313809031
+q GC mean: 0.605648280354917, q GC std: 0.013726433511313524
+avg_szie GC mean: 0.003136026603169739, avg_size GC std: 0.00015357643538972736
+avg_cov GC mean: 98.62069010734558, avg_cov GC std: 0.23533310717083292
+avg_size Bonf mean: 0.052808421291410924, avg_size Bonf std: 0.002263134065287757
+avg_cov Bonf mean: 95.6161262512207, avg_cov Bonf std: 0.5719400666663099
 Validation results:
-avg_len validation mean: 0.000689818209502846, avg_len validation std: 3.8526822442881394e-05
-avg_cov validation mean: 95.07353186607361, avg_cov validation std: 0.018578081982819485
-avg_len validation mean GC: 0.0033056985936127602, avg_len validation std GC: 0.00014761680215651972
-avg_cov validation mean GC: 98.59026402235031, avg_cov validation std GC: 0.20257255297246035
+avg_size validation mean: 0.0006667611276498064, avg_size validation std: 4.28218982172674e-05
+avg_cov validation mean: 95.07606744766235, avg_cov validation std: 0.015608710919989034
+avg_size validation mean GC: 0.0031467108405195177, avg_size validation std GC: 0.00013998169035333565
+avg_cov validation mean GC: 98.64604473114014, avg_cov validation std GC: 0.18030201595306794
+avg_size validation mean Bonf: 0.052808421291410924, avg_size validation std Bonf: 0.002263134065287757
+avg_cov validation mean Bonf: 95.68204841613769, avg_cov validation std Bonf: 0.09490432015593073
 lumbar, efficientnetb4, 0.05, 4

@@ -1,12 +1,17 @@
-q CP mean: 0.1451744019985199, q CP std: 0.002387110630634581
-avg_len CP mean: 0.00013695082016056402, avg_len CP std: 4.360936493498117e-06
-avg_cov CP mean: 89.8831894993782, avg_cov CP std: 0.5721296945042323
-q GC mean: 0.43672010430581865, q GC std: 0.005969471270610688
-avg_len GC mean: 0.0012392202916089445, avg_len GC std: 3.1362316432019336e-05
-avg_cov GC mean: 98.7988829612732, avg_cov GC std: 0.24676499695293952
+q CP mean: 3.0996612071990968, q CP std: 0.04229427970143814
+avg_size CP mean: 0.02009919350966811, avg_size CP std: 0.0002983931694770915
+avg_cov CP mean: 89.95175182819366, avg_cov CP std: 0.5296640947159335
+q GC mean: 1.9945059798389673, q GC std: 0.026874603646581632
+avg_szie GC mean: 0.012932890048250555, avg_size GC std: 0.00018083108043934575
+avg_cov GC mean: 78.36719155311584, avg_cov GC std: 0.8148439652150481
+q Bonf mean: [1.5899538218975067, 1.6612375378608704], q Bonf std: [0.030591578571924436, 0.013864565882113461]
+avg_size Bonf mean: 0.021643751580268145, avg_size Bonf std: 0.0005239883737710361
+avg_cov Bonf mean: 91.13001556396485, avg_cov Bonf std: 0.6012113724614466
 Validation results:
-avg_len validation mean: 0.00013580774757429026, avg_len validation std: 4.749305590589563e-06
-avg_cov validation mean: 90.08633971214294, avg_cov validation std: 0.02084341415910148
-avg_len validation mean GC: 0.001228922203881666, avg_len validation std GC: 3.758535943747564e-05
-avg_cov validation mean GC: 98.80396068096161, avg_cov validation std GC: 0.19107841508277323
+avg_size validation mean: 0.019948304072022437, avg_size validation std: 0.0003078052757948284
+avg_cov validation mean: 90.0888791680336, avg_cov validation std: 0.018606468802962486
+avg_size validation mean GC: 0.012836045306175946, avg_size validation std GC: 0.0002037833912483513
+avg_cov validation mean GC: 78.85474860668182, avg_cov validation std GC: 0.5213976681265675
+avg_size validation mean Bonf: 0.021643751580268145, avg_size validation std Bonf: 0.0005239883737710361
+avg_cov validation mean Bonf: 91.3103099822998, avg_cov validation std Bonf: 0.17273991577048745
 lumbar, densenet201, 0.1, 5

@@ -1,12 +1,16 @@
-q CP mean: 0.27512463480234145, q CP std: 0.009711217410830107
-avg_len CP mean: 0.0006855490122688934, avg_len CP std: 4.8198315189083765e-05
-avg_cov CP mean: 94.84997391700745, avg_cov CP std: 0.9413462452799994
-q GC mean: 0.5853339513630866, q GC std: 0.007000477558449885
-avg_len GC mean: 0.00309979337034747, avg_len GC std: 7.65133686788555e-05
-avg_cov GC mean: 99.3895497918129, avg_cov GC std: 0.14593738498010642
+q CP mean: 0.2751877695322037, q CP std: 0.009715138195603568
+avg_size CP mean: 0.0006858625536551699, avg_size CP std: 4.821678126920416e-05
+avg_cov CP mean: 94.85256046056747, avg_cov CP std: 0.9350444857991133
+q GC mean: 0.5853392492734194, q GC std: 0.007000815293230993
+avg_szie GC mean: 0.003099848167039454, avg_size GC std: 7.652275406597097e-05
+avg_cov GC mean: 99.38696324825287, avg_cov GC std: 0.14170163903326055
+avg_size Bonf mean: 0.05375649277120829, avg_size Bonf std: 0.001754253311179628
+avg_cov Bonf mean: 95.08535881042481, avg_cov Bonf std: 0.9740748288714045
 Validation results:
-avg_len validation mean: 0.0006868192489491775, avg_len validation std: 4.9033705822621815e-05
-avg_cov validation mean: 95.08022576570511, avg_cov validation std: 0.011572705655473872
-avg_len validation mean GC: 0.0031055298983119427, avg_len validation std GC: 8.324752518167031e-05
-avg_cov validation mean GC: 99.37629401683807, avg_cov validation std GC: 0.10280148663789862
+avg_size validation mean: 0.0006871215504361316, avg_size validation std: 4.908265103082984e-05
+avg_cov validation mean: 95.06987482309341, avg_cov validation std: 0.022992634649197156
+avg_size validation mean GC: 0.0031055213883519174, avg_size validation std GC: 8.323195712828864e-05
+avg_cov validation mean GC: 99.37370598316193, avg_cov validation std GC: 0.10473782034600315
+avg_size validation mean Bonf: 0.05375649277120829, avg_size validation std Bonf: 0.001754253311179628
+avg_cov validation mean Bonf: 95.3002082824707, avg_cov validation std Bonf: 0.0724256272945083
 lumbar, efficientnetb4, 0.05, 2

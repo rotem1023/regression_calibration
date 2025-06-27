@@ -1,12 +1,16 @@
-q CP mean: 0.1788375899195671, q CP std: 0.004609388301723764
-avg_len CP mean: 0.00017733015629346484, avg_len CP std: 8.417119020036007e-06
-avg_cov CP mean: 94.89394694566727, avg_cov CP std: 0.637167119565088
-q GC mean: 0.48291047310018537, q GC std: 0.004751415517132258
-avg_len GC mean: 0.0012924995797220617, avg_len GC std: 2.197966376734652e-05
-avg_cov GC mean: 99.47749614715576, avg_cov GC std: 0.10332953962857884
+q CP mean: 0.18367107659578324, q CP std: 0.0051776134994988695
+avg_size CP mean: 0.0001873064073151909, avg_size CP std: 9.755062624442957e-06
+avg_cov CP mean: 94.89394724369049, avg_cov CP std: 0.6505126624727775
+q GC mean: 0.48385912907391787, q GC std: 0.004670077982254805
+avg_szie GC mean: 0.0012992296309676022, avg_size GC std: 2.194510339828856e-05
+avg_cov GC mean: 99.47749614715576, avg_cov GC std: 0.0837541532957569
+avg_size Bonf mean: 0.02413184493780136, avg_size Bonf std: 0.0005755717393908494
+avg_cov Bonf mean: 95.11381187438965, avg_cov Bonf std: 0.5128128727985851
 Validation results:
-avg_len validation mean: 0.00017757676032488235, avg_len validation std: 1.0018251083124479e-05
-avg_cov validation mean: 95.06728708744049, avg_cov validation std: 0.024333117307177004
-avg_len validation mean GC: 0.0012939024134539067, avg_len validation std GC: 3.087059860717003e-05
-avg_cov validation mean GC: 99.50051724910736, avg_cov validation std GC: 0.06774615215696099
+avg_size validation mean: 0.00018750233284663408, avg_size validation std: 1.127324184751219e-05
+avg_cov validation mean: 95.07246255874634, avg_cov validation std: 0.02123968608654831
+avg_size validation mean GC: 0.0013001919782254846, avg_size validation std GC: 3.042959723300918e-05
+avg_cov validation mean GC: 99.48498904705048, avg_cov validation std GC: 0.08307836127730676
+avg_size validation mean Bonf: 0.02413184493780136, avg_size validation std Bonf: 0.0005755717393908494
+avg_cov validation mean Bonf: 95.36231880187988, avg_cov validation std Bonf: 0.07203332462848892
 lumbar, densenet201, 0.05, 2

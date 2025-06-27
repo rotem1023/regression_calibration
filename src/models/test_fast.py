@@ -56,8 +56,8 @@ def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
     """
     y_test = y_test.unsqueeze(1).mean(dim=1)
     in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
-    avg_length = abs(y_upper - y_lower)
-    return ((y_test >= y_lower) & (y_test <= y_upper)), avg_length
+    length = abs(y_upper - y_lower)
+    return ((y_test >= y_lower) & (y_test <= y_upper)), length
 
 def compute_coverage_size_bonf(targets, preds, sds, q_s):
     coverages, lengths = [], []
@@ -88,13 +88,14 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
     delta = torch.abs(target_calib - mu_calib)
 
     # Compute Σ(x)^(-1) under diagonal assumption → just 1 / sd
-    inv_cov_diag = 1.0 / (sd_calib)  # [N, D]
+    inv_cov_diag = 1.0 / (sd_calib ** 2)  # [N, D]
+    ind_sd = (1.0 / sd_calib)
 
     # Compute Mahalanobis distance: (delta^T @ Σ^{-1} @ delta), simplified for diagonal
     if sd_calib.shape[-1] != 1:
         s_t = torch.sum(delta * inv_cov_diag * delta, dim=1)
     else: 
-        s_t = torch.sum(delta * inv_cov_diag, dim=1)  # [N, D] -> [N]
+        s_t = torch.sum(delta * ind_sd, dim=1)  # [N, D] -> [N]
     # if sd_calib.shape[-1] == 1:
     #     s_t_tmp = torch.abs(target_calib-mu_calib) / sd_calib
     # s_t = torch.sum(torch.abs(target_calib-mu_calib), dim =1) / sd_calib
@@ -116,7 +117,7 @@ def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
 
 def calc_stats(q, target, mu, sd):
     dist_true = torch.sum(torch.abs(target - mu), dim =1) 
-    dist_pred = q * sd
+    dist_pred = math.sqrt(q) * sd
     area = avg_ellipsoid_volume(dist_pred)
     coverage = avg_cov_ellipsoid(q, target, mu, sd)
     return area, coverage
@@ -135,7 +136,7 @@ def avg_cov_ellipsoid(q, target, mu, sd):
         float: Percentage of points within the ellipsoid.
     """
     # Compute squared Mahalanobis distance for all points in batch
-    dists = torch.sum(((target - mu) ** 2) / (sd), dim=1)  # Shape: [N]
+    dists = torch.sum(((target - mu) ** 2) / (sd ** 2), dim=1)  # Shape: [N]
     
     # Check how many distances are within the threshold q
     within = (dists <= q).float()
@@ -256,14 +257,14 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     dataset = 'lumbar'
     iters = 20
     level = 1
-    alpha = 0.05
+    alpha = 0.1
     load_preds = True
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
@@ -418,8 +419,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         q_bonf = calc_bonferroni_q(target_calib, mu_calib, sd_calib, alpha)
         valid_length_bonf, valid_coverage_bonf = compute_coverage_size_bonf(target_calib, mu_calib, sd_calib, q_bonf)
         test_length_bonf, test_coverage_bonf = compute_coverage_size_bonf(target_test, mu_test, sd_test, q_bonf)
-            
-        print(f'q: {q}, q_gc: {q_gc}')
+
+          
+        print(f'q: {q}, q_gc: {q_gc}, q_bonf: {q_bonf}')
         print(f'valid_length: {valid_length}, valid_coverage: {valid_coverage}')
         print(f'test_length: {test_length}, test_coverage: {test_coverage}')
         print(f'valid_length_gc: {valid_length_gc}, valid_coverage_gc: {valid_coverage_gc}')
@@ -441,6 +443,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         avg_len_valid_all_gc.append(get_float(valid_length_gc))
         avg_cov_valid_all_gc.append(get_float(valid_coverage_gc))
         
+        q_all_bonf.append(q_bonf)
         avg_cov_all_bonf.append(get_float(test_coverage_bonf))
         avg_len_all_bonf.append(get_float(test_length_bonf))
         avg_len_valid_all_bonf.append(get_float(valid_length_bonf))
@@ -482,6 +485,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         f.write(f'avg_cov GC mean: {statistics.mean(avg_cov_all_gc)}, avg_cov GC std: {statistics.stdev(avg_cov_all_gc)}\n')
         
         # Print and save Bonferroni metrics
+        print(f'q Bonf mean: {np.array(q_all_bonf).mean(axis=0).tolist()}, q Bonf std: {np.array(q_all_bonf).std(axis=0).tolist()}')
+        f.write(f'q Bonf mean: {np.array(q_all_bonf).mean(axis=0).tolist()}, q Bonf std: {np.array(q_all_bonf).std(axis=0).tolist()}\n')
+        
         print(f'avg_size Bonf mean: {statistics.mean(avg_len_valid_all_bonf)}, avg_size Bonf std: {statistics.stdev(avg_len_valid_all_bonf)}')
         f.write(f'avg_size Bonf mean: {statistics.mean(avg_len_valid_all_bonf)}, avg_size Bonf std: {statistics.stdev(avg_len_valid_all_bonf)}\n')
         print(f'avg_cov Bonf mean: {statistics.mean(avg_cov_all_bonf)}, avg_cov Bonf std: {statistics.stdev(avg_cov_all_bonf)}')

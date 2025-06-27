@@ -65,8 +65,8 @@ def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
     """
     y_test = y_test.unsqueeze(1).mean(dim=1)
     in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
-    coverage = in_the_range / len(y_test) * 100
-    return ((y_test >= y_lower) & (y_test <= y_upper)), torch.mean(abs(y_upper - y_lower))
+    length = abs(y_upper - y_lower)
+    return ((y_test >= y_lower) & (y_test <= y_upper)), length
 
 def compute_coverage_len(targets, preds, q_s):
     coverages, lengths = [], []
@@ -100,7 +100,6 @@ def get_scaler_conformal(target, preds, alpha):
     for i in range(dims):
         dim_preds = preds[i]
         dim_target = target[:, i]
-        print(f'Calculating {printed_type} for dim {i}')
         # Calculate optimal q for this dimension
         q = calc_optimal_q(dim_target, dim_preds, alpha=actual_alpha)
         q_s.append(q)
@@ -195,15 +194,15 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:0")
     dataset = 'lumbar'
     iters = 20
-    level = 1
-    alpha = 0.1
-    load_preds = False
+    level = 5
+    alpha = 0.05
+    load_preds = True
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
@@ -335,8 +334,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     # Open the file in append mode
     with open(f'{output_dir}/{output_file}', "w") as f:
         # Print and save CP metrics
-        # print(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}')
-        # f.write(f'q mean: {statistics.mean(q_all)}, q std: {statistics.stdev(q_all)}\n')
+        print(f'q cqr mean: {np.array(q_all).mean(axis=0).tolist()}, q Bonf std: {np.array(q_all).std(axis=0).tolist()}')
+        f.write(f'q cqr mean: {np.array(q_all).mean(axis=0).tolist()}, q Bonf std: {np.array(q_all).std(axis=0).tolist()}\n')
+        
         
         print(f'avg_len valid mean: {statistics.mean(len_valid_sets)}, avg_len valid std: {statistics.stdev(len_valid_sets)}')
         f.write(f'avg_len valid  mean: {statistics.mean(len_valid_sets)}, avg_len valid std: {statistics.stdev(len_valid_sets)}\n')
