@@ -22,7 +22,8 @@ import statistics
 import math
 import load_trained_models
 from data_generator_brain import BrainDatasetTest, BrainDatasetVal 
-
+from functools import reduce
+from operator import mul
 
     
     
@@ -65,8 +66,7 @@ def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
     y_test = y_test.unsqueeze(1).mean(dim=1)
     in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
     coverage = in_the_range / len(y_test) * 100
-    avg_length = torch.mean(abs(y_upper - y_lower))
-    return ((y_test >= y_lower) & (y_test <= y_upper)), avg_length
+    return ((y_test >= y_lower) & (y_test <= y_upper)), torch.mean(abs(y_upper - y_lower))
 
 def compute_coverage_len(targets, preds, q_s):
     coverages, lengths = [], []
@@ -86,8 +86,8 @@ def compute_coverage_len(targets, preds, q_s):
     overall_cvg = overall_cvg.to(dtype=torch.uint8)   
     
     coverage = torch.sum(overall_cvg) / len(overall_cvg)
-    length = np.prod(lengths)
-    return  length, coverage * 100
+    length = reduce(mul, lengths)
+    return  torch.mean(length).item(), coverage * 100
 
 def get_scaler_conformal(target, preds, alpha):
     """
@@ -195,56 +195,64 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:0")
     dataset = 'lumbar'
     iters = 20
-    level = 2
-    alpha = 0.05
+    level = 1
+    alpha = 0.1
+    load_preds = False
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
-    model = BreastPathQModel(base_model, out_channels=2).to(device)
-
-    # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    if dataset == 'brain':
-            checkpoint = torch.load(f'{models_dir}/{base_model}_{dataset}_L1_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
-    else:
-        checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims.pth.tar', map_location=device)
-    model.load_state_dict(checkpoint['state_dict'])
-    print(f"epoch: {checkpoint['epoch']}")
     
-    batch_size = 64
-
-    if dataset =='brain':
-        data_set_valid_original = BrainDatasetVal(model=base_model)
-        data_set_test_original = BrainDatasetTest(model=base_model)
-    else:
-        data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
-        data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
-    
-    assert len(data_set_valid_original) > 0
-    assert len(data_set_test_original) > 0
-    print(len(data_set_valid_original))
-    print(len(data_set_test_original))
-        
-    calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
-    test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
-    
-    y_p_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
-    y_p_test_original, targets_test_original = get_arrays(test_loader, model, device)
-    
-    # save arrays
     results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr/dims"
-    os.makedirs(results_dir, exist_ok=True)
-    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
-    np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
-    
+    if not load_preds:
+        model = BreastPathQModel(base_model, out_channels=2).to(device)
+
+        # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
+        # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
+        if dataset == 'brain':
+                checkpoint = torch.load(f'{models_dir}/{base_model}_{dataset}_L1_alpha_{alpha}_cqr_best.pth.tar', map_location=device)
+        else:
+            checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims.pth.tar', map_location=device)
+        model.load_state_dict(checkpoint['state_dict'])
+        print(f"epoch: {checkpoint['epoch']}")
+        
+        batch_size = 64
+
+        if dataset =='brain':
+            data_set_valid_original = BrainDatasetVal(model=base_model)
+            data_set_test_original = BrainDatasetTest(model=base_model)
+        else:
+            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
+            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+        
+        assert len(data_set_valid_original) > 0
+        assert len(data_set_test_original) > 0
+        print(len(data_set_valid_original))
+        print(len(data_set_test_original))
+            
+        calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
+        test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
+        
+        y_p_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
+        y_p_test_original, targets_test_original = get_arrays(test_loader, model, device)
+        
+        # save arrays
+        os.makedirs(results_dir, exist_ok=True)
+        np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
+        np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
+        np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+        np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy', targets_test_original.cpu().numpy())
+    else:
+        # Load arrays
+        y_p_calib_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy'))
+        targets_calib_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy'))
+        y_p_test_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy'))
+        targets_test_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_test_original.npy'))    
     
     
     # Calibration and test arrays (from your original code)

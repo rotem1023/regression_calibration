@@ -26,18 +26,77 @@ from operator import mul
 
 
     
+def calc_bonferroni_q(target_calib, mu_calib, sd_calib, alpha): 
+    qs = []
+    updated_alpha = alpha / target_calib.ndim
+    for i in range(target_calib.ndim):
+        target_i = target_calib[:, i] 
+        mu_i = mu_calib[:, i]
+        sd_calib_i = sd_calib[:, i]
+        q_dim = calc_optimal_q(target_i.unsqueeze(-1), mu_i.unsqueeze(-1), sd_calib_i.unsqueeze(-1), updated_alpha)
+        qs.append(q_dim)
+    return qs
+
+def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
+    """ Compute average coverage and length of prediction intervals
+
+    Parameters
+    ----------
+
+    y_test : numpy array, true labels (n)
+    y_lower : numpy array, estimated lower bound for the labels (n)
+    y_upper : numpy array, estimated upper bound for the labels (n)
+
+    Returns
+    -------
+
+    coverage : float, average coverage
+    avg_length : float, average length
+
+    """
+    y_test = y_test.unsqueeze(1).mean(dim=1)
+    in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
+    avg_length = abs(y_upper - y_lower)
+    return ((y_test >= y_lower) & (y_test <= y_upper)), avg_length
+
+def compute_coverage_size_bonf(targets, preds, sds, q_s):
+    coverages, lengths = [], []
+    for i in range(targets.ndim):
+        cur_tgrets = targets[:, i]
+        cur_preds = preds[:, i]
+        cur_sd = sds[:, i]
+        cur_q = q_s[i]
+        y_lower = cur_preds - cur_sd * cur_q
+        y_upper = cur_preds + cur_sd * cur_q
+        cur_coverage, cur_length = compute_in_range_len_one_dim(cur_tgrets, y_lower, y_upper)
+        coverages.append(cur_coverage)
+        lengths.append(cur_length)
+
+    overall_cvg = torch.stack(coverages).all(dim=0)
+
+    # Convert boolean result to int (0/1)
+    overall_cvg = overall_cvg.to(dtype=torch.uint8)   
+    
+    coverage = torch.sum(overall_cvg) / len(overall_cvg)
+    length = reduce(mul, lengths)
+    return  torch.mean(length).item(), coverage * 100
     
 
 # CP
 
 def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
-    delta = target_calib - mu_calib
+    delta = torch.abs(target_calib - mu_calib)
 
     # Compute Σ(x)^(-1) under diagonal assumption → just 1 / sd
-    inv_cov_diag = 1.0 / sd_calib  # [N, D]
+    inv_cov_diag = 1.0 / (sd_calib)  # [N, D]
 
     # Compute Mahalanobis distance: (delta^T @ Σ^{-1} @ delta), simplified for diagonal
-    s_t = torch.sum(delta * inv_cov_diag * delta, dim=1) 
+    if sd_calib.shape[-1] != 1:
+        s_t = torch.sum(delta * inv_cov_diag * delta, dim=1)
+    else: 
+        s_t = torch.sum(delta * inv_cov_diag, dim=1)  # [N, D] -> [N]
+    # if sd_calib.shape[-1] == 1:
+    #     s_t_tmp = torch.abs(target_calib-mu_calib) / sd_calib
     # s_t = torch.sum(torch.abs(target_calib-mu_calib), dim =1) / sd_calib
     if gc:
         S = (s_t).mean().sqrt()
@@ -76,7 +135,7 @@ def avg_cov_ellipsoid(q, target, mu, sd):
         float: Percentage of points within the ellipsoid.
     """
     # Compute squared Mahalanobis distance for all points in batch
-    dists = torch.sum(((target - mu) ** 2) / sd, dim=1)  # Shape: [N]
+    dists = torch.sum(((target - mu) ** 2) / (sd), dim=1)  # Shape: [N]
     
     # Check how many distances are within the threshold q
     within = (dists <= q).float()
@@ -119,19 +178,6 @@ def avg_ellipsoid_volume(dist_pred):
     return volumes.mean().item()
 
 
-
-def batch_diag(diag_elements):
-    """
-    Convert [n, D] tensor to [n, D, D] diagonal matrices.
-    
-    Parameters:
-        diag_elements (Tensor): Shape [n, D], each row is the diagonal of a matrix.
-    
-    Returns:
-        Tensor: Shape [n, D, D], batch of diagonal matrices.
-    """
-    return torch.diag_embed(diag_elements)
-
 def get_arrays(data_loader, model, device):
     y_p_s = []
     vars_s = []
@@ -162,8 +208,7 @@ def get_arrays(data_loader, model, device):
                     
     return mu, var, logvar, targets    
     
-import numpy as np
-import torch
+
 
 def shuffle_arrays(calib_arrays, test_arrays):
     """
@@ -211,60 +256,75 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:3")
+    device = torch.device("cuda:0")
     dataset = 'lumbar'
     iters = 20
-    level = 5
+    level = 1
     alpha = 0.05
+    load_preds = True
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
-    model = BreastPathQModel(base_model, out_channels=2).to(device)
 
-    # TODO: load checkpoint 
-    # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
-    # TODO fix it 
-    if dataset == 'brain':
-        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_{dataset}_best.pth.tar', map_location=device)
-    else:
-        checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=device)
-    model.load_state_dict(checkpoint['state_dict'])
-    print(f"epoch: {checkpoint['epoch']}")
     
     batch_size = 64
 
-    if dataset =='brain':
-        data_set_valid_original = BrainDatasetVal(model=base_model)
-        data_set_test_original = BrainDatasetTest(model=base_model)
-    else:
-        data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
-        data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
-    
-    assert len(data_set_valid_original) > 0
-    assert len(data_set_test_original) > 0
-    print(len(data_set_valid_original))
-    print(len(data_set_test_original))
-        
-    calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
-    test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
-    
-    y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
-    y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
-    
-    # save test arrays
-    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/dims"
-    
-    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
-    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
-    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_calib_original.cpu().numpy())  
-    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy()) 
-    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
-    np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_test_original.cpu().numpy())
 
+    
+
+    
+    results_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/dims"
+
+    # save test arrays
+    if not load_preds:
+        model = BreastPathQModel(base_model, out_channels=2).to(device)
+
+        # TODO: load checkpoint 
+        # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
+        # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
+        # TODO fix it 
+        if dataset == 'brain':
+            checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_{dataset}_best.pth.tar', map_location=device)
+        else:
+            checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=device)
+        model.load_state_dict(checkpoint['state_dict'])
+        print(f"epoch: {checkpoint['epoch']}")
+        if dataset =='brain':
+            data_set_valid_original = BrainDatasetVal(model=base_model)
+            data_set_test_original = BrainDatasetTest(model=base_model)
+        else:
+            data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
+            data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
+        
+        assert len(data_set_valid_original) > 0
+        assert len(data_set_test_original) > 0
+        print(len(data_set_valid_original))
+        print(len(data_set_test_original))
+        
+        calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
+        test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
+        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
+        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
+        np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
+        np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
+        np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_test_original.cpu().numpy())  
+        np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy()) 
+        np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_calib_original.npy', logvars_calib_original.cpu().numpy())
+        np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
+    else:
+        y_p_calib_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_calib_original.npy'))
+        logvars_calib_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_calib_original.npy'))
+        vars_calib_original = logvars_calib_original.exp()
+        targets_calib_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_calib_original.npy'))
+        y_p_test_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_test_original.npy'))
+        logvars_test_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_test_original.npy'))
+        vars_test_original = logvars_test_original.exp()
+        targets_test_original = torch.from_numpy(np.load(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_test_original.npy'))
+        
+    
     # print(f"y_p_test: {list(y_p_test_original)}")
     # print(f"logvars_test: {list(logvars_test_original)}")
     
@@ -292,12 +352,17 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     q_all_gc = []
     avg_len_all_gc = []
     avg_cov_all_gc = []
+    q_all_bonf = []
+    avg_len_all_bonf = []
+    avg_cov_all_bonf = []
+    # validation results
     
     avg_len_valid_all = []
     avg_cov_valid_all = []
     avg_len_valid_all_gc = []
     avg_cov_valid_all_gc = []
-    
+    avg_len_valid_all_bonf = []
+    avg_cov_valid_all_bonf = []
     
 
 
@@ -342,18 +407,25 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
         valid_length, valid_coverage = calc_stats(q, target_calib, mu_calib, sd_calib)
         test_length, test_coverage = calc_stats(q, target_test, mu_test, sd_test)
-                     
+
             
         q_gc = calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=True)
                      
         valid_length_gc, valid_coverage_gc = calc_stats(q_gc, target_calib, mu_calib, sd_calib)
         test_length_gc, test_coverage_gc = calc_stats(q_gc, target_test, mu_test, sd_test)
+        
+        
+        q_bonf = calc_bonferroni_q(target_calib, mu_calib, sd_calib, alpha)
+        valid_length_bonf, valid_coverage_bonf = compute_coverage_size_bonf(target_calib, mu_calib, sd_calib, q_bonf)
+        test_length_bonf, test_coverage_bonf = compute_coverage_size_bonf(target_test, mu_test, sd_test, q_bonf)
             
         print(f'q: {q}, q_gc: {q_gc}')
         print(f'valid_length: {valid_length}, valid_coverage: {valid_coverage}')
         print(f'test_length: {test_length}, test_coverage: {test_coverage}')
         print(f'valid_length_gc: {valid_length_gc}, valid_coverage_gc: {valid_coverage_gc}')
         print(f'test_length_gc: {test_length_gc}, test_coverage_gc: {test_coverage_gc}')
+        print(f'valid_length_bonf: {valid_length_bonf}, valid_coverage_bonf: {valid_coverage_bonf}')
+        print(f'test_length_bonf: {test_length_bonf}, test_coverage_bonf: {test_coverage_bonf}')
             
 
         q_all.append(get_float(q))
@@ -369,13 +441,19 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         avg_len_valid_all_gc.append(get_float(valid_length_gc))
         avg_cov_valid_all_gc.append(get_float(valid_coverage_gc))
         
+        avg_cov_all_bonf.append(get_float(test_coverage_bonf))
+        avg_len_all_bonf.append(get_float(test_length_bonf))
+        avg_len_valid_all_bonf.append(get_float(valid_length_bonf))
+        avg_cov_valid_all_bonf.append(get_float(valid_coverage_bonf))
+        
     print(f"q cp: {q_all}")
     print(f"q gc: {q_all_gc}")
     print(f"avg_len cp: {avg_len_all}")
     print(f"avg_len gc: {avg_len_all_gc}")
     print(f"avg_cov cp: {avg_cov_all}")
     print(f"avg_cov gc: {avg_cov_all_gc}")
-
+    print(f"avg_len bonf: {avg_len_all_bonf}")
+    print(f"avg_cov bonf: {avg_cov_all_bonf}")
 
     # Define the output file path
     output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/dims'
@@ -387,8 +465,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         print(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}')
         f.write(f'q CP mean: {statistics.mean(q_all)}, q CP std: {statistics.stdev(q_all)}\n')
         
-        print(f'avg_len CP mean: {statistics.mean(avg_len_all)}, avg_len CP std: {statistics.stdev(avg_len_all)}')
-        f.write(f'avg_len CP mean: {statistics.mean(avg_len_all)}, avg_len CP std: {statistics.stdev(avg_len_all)}\n')
+        print(f'avg_size CP mean: {statistics.mean(avg_len_all)}, avg_size CP std: {statistics.stdev(avg_len_all)}')
+        f.write(f'avg_size CP mean: {statistics.mean(avg_len_all)}, avg_size CP std: {statistics.stdev(avg_len_all)}\n')
         
         print(f'avg_cov CP mean: {statistics.mean(avg_cov_all)}, avg_cov CP std: {statistics.stdev(avg_cov_all)}')
         f.write(f'avg_cov CP mean: {statistics.mean(avg_cov_all)}, avg_cov CP std: {statistics.stdev(avg_cov_all)}\n')
@@ -397,26 +475,38 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         print(f'q GC mean: {statistics.mean(q_all_gc)}, q GC std: {statistics.stdev(q_all_gc)}')
         f.write(f'q GC mean: {statistics.mean(q_all_gc)}, q GC std: {statistics.stdev(q_all_gc)}\n')
         
-        print(f'avg_len GC mean: {statistics.mean(avg_len_all_gc)}, avg_len GC std: {statistics.stdev(avg_len_all_gc)}')
-        f.write(f'avg_len GC mean: {statistics.mean(avg_len_all_gc)}, avg_len GC std: {statistics.stdev(avg_len_all_gc)}\n')
+        print(f'avg_size GC mean: {statistics.mean(avg_len_all_gc)}, avg_size GC std: {statistics.stdev(avg_len_all_gc)}')
+        f.write(f'avg_szie GC mean: {statistics.mean(avg_len_all_gc)}, avg_size GC std: {statistics.stdev(avg_len_all_gc)}\n')
         
         print(f'avg_cov GC mean: {statistics.mean(avg_cov_all_gc)}, avg_cov GC std: {statistics.stdev(avg_cov_all_gc)}')
         f.write(f'avg_cov GC mean: {statistics.mean(avg_cov_all_gc)}, avg_cov GC std: {statistics.stdev(avg_cov_all_gc)}\n')
         
+        # Print and save Bonferroni metrics
+        print(f'avg_size Bonf mean: {statistics.mean(avg_len_valid_all_bonf)}, avg_size Bonf std: {statistics.stdev(avg_len_valid_all_bonf)}')
+        f.write(f'avg_size Bonf mean: {statistics.mean(avg_len_valid_all_bonf)}, avg_size Bonf std: {statistics.stdev(avg_len_valid_all_bonf)}\n')
+        print(f'avg_cov Bonf mean: {statistics.mean(avg_cov_all_bonf)}, avg_cov Bonf std: {statistics.stdev(avg_cov_all_bonf)}')
+        f.write(f'avg_cov Bonf mean: {statistics.mean(avg_cov_all_bonf)}, avg_cov Bonf std: {statistics.stdev(avg_cov_all_bonf)}\n')
+    
+        
         # save validation results
         f.write(f"Validation results:\n")
-        print(f"avg_len validation mean: {statistics.mean(avg_len_valid_all)}, avg_len validation std: {statistics.stdev(avg_len_valid_all)}")
-        f.write(f"avg_len validation mean: {statistics.mean(avg_len_valid_all)}, avg_len validation std: {statistics.stdev(avg_len_valid_all)}\n")
+        print(f"avg_size validation mean: {statistics.mean(avg_len_valid_all)}, avg_size validation std: {statistics.stdev(avg_len_valid_all)}")
+        f.write(f"avg_size validation mean: {statistics.mean(avg_len_valid_all)}, avg_size validation std: {statistics.stdev(avg_len_valid_all)}\n")
         
         print(f"avg_cov validation mean: {statistics.mean(avg_cov_valid_all)}, avg_cov validation std: {statistics.stdev(avg_cov_valid_all)}")
         f.write(f"avg_cov validation mean: {statistics.mean(avg_cov_valid_all)}, avg_cov validation std: {statistics.stdev(avg_cov_valid_all)}\n")
         
-        print(f"avg_len validation mean GC: {statistics.mean(avg_len_valid_all_gc)}, avg_len validation std GC: {statistics.stdev(avg_len_valid_all_gc)}")
-        f.write(f"avg_len validation mean GC: {statistics.mean(avg_len_valid_all_gc)}, avg_len validation std GC: {statistics.stdev(avg_len_valid_all_gc)}\n")
+        print(f"avg_size validation mean GC: {statistics.mean(avg_len_valid_all_gc)}, avg_size validation std GC: {statistics.stdev(avg_len_valid_all_gc)}")
+        f.write(f"avg_size validation mean GC: {statistics.mean(avg_len_valid_all_gc)}, avg_size validation std GC: {statistics.stdev(avg_len_valid_all_gc)}\n")
         
         print(f"avg_cov validation mean GC: {statistics.mean(avg_cov_valid_all_gc)}, avg_cov validation std GC: {statistics.stdev(avg_cov_valid_all_gc)}")
         f.write(f"avg_cov validation mean GC: {statistics.mean(avg_cov_valid_all_gc)}, avg_cov validation std GC: {statistics.stdev(avg_cov_valid_all_gc)}\n")        
         
+        print(f"avg_size validation mean Bonf: {statistics.mean(avg_len_valid_all_bonf)}, avg_size validation std Bonf: {statistics.stdev(avg_len_valid_all_bonf)}")
+        f.write(f"avg_size validation mean Bonf: {statistics.mean(avg_len_valid_all_bonf)}, avg_size validation std Bonf: {statistics.stdev(avg_len_valid_all_bonf)}\n")
+        
+        print(f"avg_cov validation mean Bonf: {statistics.mean(avg_cov_valid_all_bonf)}, avg_cov validation std Bonf: {statistics.stdev(avg_cov_valid_all_bonf)}")
+        f.write(f"avg_cov validation mean Bonf: {statistics.mean(avg_cov_valid_all_bonf)}, avg_cov validation std Bonf: {statistics.stdev(avg_cov_valid_all_bonf)}\n")
                  
         # Print and save additional info
         print(f"{dataset}, {base_model}, {alpha}, {level}")
