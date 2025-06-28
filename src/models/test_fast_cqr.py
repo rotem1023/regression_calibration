@@ -24,11 +24,25 @@ import load_trained_models
 from data_generator_brain import BrainDatasetTest, BrainDatasetVal 
 from functools import reduce
 from operator import mul
-
+from max_rank import adjusted_q_max_rank
     
     
 
-    
+def calc_optimal_q_max_rank(target, preds, alpha):
+    dims = preds.shape[0]
+    scores = []
+    for i in range(dims):
+        dim_preds = preds[i]
+        dim_target = target[:, i]
+        y_lower = dim_preds[:, 0]
+        y_upper = dim_preds[:, 1]
+        error_low = y_lower - dim_target
+        error_high = dim_target - y_upper
+        err = torch.maximum(error_high, error_low)
+        scores.append(err)
+    scores = torch.stack(scores, dim=0)
+    return adjusted_q_max_rank(scores.T.cpu().numpy(), alpha=alpha) 
+        
 # CQR
 
 def calc_optimal_q(target_calib, mu_calib, alpha=0.1):
@@ -228,13 +242,13 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:2")
     dataset = 'lumbar'
     iters = 20
-    level = 2
+    level = 1
     alpha = 0.05
     load_preds = False
     save_visual = False
@@ -310,12 +324,17 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     ]
 
     q_all = []
+    q_all_max_rank= []
+    
     len_valid_sets = []
     cov_valid_sets = []
-    q_all_gc = []
+    len_valid_sets_max_rank = []
+    cov_valid_sets_max_rank = []
+
     len_test_sets = []
     cov_test_sets = []
-    
+    len_test_sets_max_rank = []
+    cov_test_sets_max_rank = []    
 
 
     for j in range(iters):
@@ -352,24 +371,37 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
                 
 
         q = get_scaler_conformal(target_calib, t_p_calib, alpha)
-        print("validation set")
         length_val, coverage_val = compute_coverage_len(target_calib, t_p_calib, q)
-        print("test set")
-        length_test, coverage_test = compute_coverage_len(target_test, t_p_test, q)    
+        length_test, coverage_test = compute_coverage_len(target_test, t_p_test, q)  
+        
+        q_max_rank = calc_optimal_q_max_rank(target_calib, t_p_calib, alpha)
+        valid_length_max_rank, valid_coverage_max_rank = compute_coverage_len(target_calib, t_p_calib, q_max_rank)
+        test_length_max_rank, test_coverage_max_rank = compute_coverage_len(target_test, t_p_test, q_max_rank)
+          
     
         
         q_all.append(get_float(q))
         len_valid_sets.append(get_float(length_val))
         cov_valid_sets.append(get_float(coverage_val))
-        
         len_test_sets.append(get_float(length_test))
         cov_test_sets.append(get_float(coverage_test))
+        
+        q_all_max_rank.append(get_float(q_max_rank))
+        len_valid_sets_max_rank.append(get_float(valid_length_max_rank))
+        cov_valid_sets_max_rank.append(get_float(valid_coverage_max_rank))
+        len_test_sets_max_rank.append(get_float(test_length_max_rank))
+        cov_test_sets_max_rank.append(get_float(test_coverage_max_rank))
         
     print(f" q's: {q_all}")
     print(f"valid len's {len_valid_sets}")
     print(f"valid coverage's {cov_valid_sets}")
     print(f"test coverages's {len_test_sets}")
     print(f"test coverage's {cov_test_sets}")
+    print(f" q's max rank: {q_all_max_rank}")
+    print(f"valid len's max rank {len_valid_sets_max_rank}")
+    print(f"valid coverage's max rank {cov_valid_sets_max_rank}")
+    print(f"test len's max rank {len_test_sets_max_rank}")
+    print(f"test coverage's max rank {cov_test_sets_max_rank}")
 
     # Define the output file path
     output_dir= '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/cqr/dims'
@@ -389,12 +421,26 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         f.write(f'avg_cov valid mean: {statistics.mean(cov_valid_sets)}, avg_cov std: {statistics.stdev(cov_valid_sets)}\n')
         
         
+        print(f'q max_rank mean: {np.array(q_all_max_rank).mean(axis=0).tolist()}, q max_rank std: {np.array(q_all_max_rank).std(axis=0).tolist()}')
+        f.write(f'q max_rank mean: {np.array(q_all_max_rank).mean(axis=0).tolist()}, q max_rank std: {np.array(q_all_max_rank).std(axis=0).tolist()}\n')
+        
+        print(f'avg_len valid max_rank mean: {statistics.mean(len_valid_sets_max_rank)}, avg_len valid max_rank std: {statistics.stdev(len_valid_sets_max_rank)}')
+        f.write(f'avg_len valid max_rank mean: {statistics.mean(len_valid_sets_max_rank)}, avg_len valid max_rank std: {statistics.stdev(len_valid_sets_max_rank)}\n')
+        
+        print(f'avg_cov valid max_rank mean: {statistics.mean(cov_valid_sets_max_rank)}, avg_cov valid max_rank std: {statistics.stdev(cov_valid_sets_max_rank)}')
+        f.write(f'avg_cov valid max_rank mean: {statistics.mean(cov_valid_sets_max_rank)}, avg_cov valid max_rank std: {statistics.stdev(cov_valid_sets_max_rank)}\n')
+        
         print(f'avg_len test mean: {statistics.mean(len_test_sets)}, avg_len  test std: {statistics.stdev(len_test_sets)}')
         f.write(f'avg_len test mean: {statistics.mean(len_test_sets)}, avg_len test std: {statistics.stdev(len_test_sets)}\n')
         
         print(f'avg_cov test mean: {statistics.mean(cov_test_sets)}, avg_cov test std: {statistics.stdev(cov_test_sets)}')
         f.write(f'avg_cov test mean: {statistics.mean(cov_test_sets)}, avg_cov test std: {statistics.stdev(cov_test_sets)}\n')
         
+        print(f'avg_len test max_rank mean: {statistics.mean(len_test_sets_max_rank)}, avg_len test max_rank std: {statistics.stdev(len_test_sets_max_rank)}')
+        f.write(f'avg_len test max_rank mean: {statistics.mean(len_test_sets_max_rank)}, avg_len test max_rank std: {statistics.stdev(len_test_sets_max_rank)}\n')
+        
+        print(f'avg_cov test max_rank mean: {statistics.mean(cov_test_sets_max_rank)}, avg_cov test max_rank std: {statistics.stdev(cov_test_sets_max_rank)}')
+        f.write(f'avg_cov test max_rank mean: {statistics.mean(cov_test_sets_max_rank)}, avg_cov test max_rank std: {statistics.stdev(cov_test_sets_max_rank)}\n')
                  
         # Print and save additional info
         print(f"{dataset} cqr, {base_model}, {alpha}, {level}")

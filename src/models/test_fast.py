@@ -23,6 +23,7 @@ import math
 from data_generator_brain import BrainDatasetTest, BrainDatasetVal 
 from functools import reduce
 from operator import mul
+from max_rank import adjusted_q_max_rank
 
 
     
@@ -82,7 +83,19 @@ def compute_coverage_size_bonf(targets, preds, sds, q_s):
     return  torch.mean(length).item(), coverage * 100
     
 
+def calc_optimal_q_max_rank(target_calib, mu_calib, sd_calib, alpha):
+    delta = torch.abs(target_calib - mu_calib)
+
+    inv_cov_diag = 1.0 / (sd_calib ** 2)
+    
+    s_t = torch.sqrt((delta * inv_cov_diag * delta))
+    
+    s_t = s_t.cpu().numpy()
+    
+    return adjusted_q_max_rank(s_t, alpha)
+
 # CP
+
 
 def calc_optimal_q(target_calib, mu_calib, sd_calib, alpha, gc=False):
     delta = torch.abs(target_calib - mu_calib)
@@ -250,9 +263,6 @@ def shuffle_arrays(calib_arrays, test_arrays):
     #     np.random.seed(seed)
 
     # Combine calib and test arrays
-    # TODO: remove this 
-    return calib_arrays, test_arrays
-
     combined_arrays = [torch.cat([calib, test], dim=0) for calib, test in zip(calib_arrays, test_arrays)]
     
     # Generate shuffle indices
@@ -393,6 +403,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     q_all_bonf = []
     avg_len_all_bonf = []
     avg_cov_all_bonf = []
+    q_all_max_rank = []
+    avg_len_all_max_rank = []
+    avg_cov_all_max_rank = []
     # validation results
     
     avg_len_valid_all = []
@@ -401,6 +414,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     avg_cov_valid_all_gc = []
     avg_len_valid_all_bonf = []
     avg_cov_valid_all_bonf = []
+    avg_len_valid_all_max_rank = []
+    avg_cov_valid_all_max_rank = []
     
 
 
@@ -457,6 +472,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         valid_length_bonf, valid_coverage_bonf = compute_coverage_size_bonf(target_calib, mu_calib, sd_calib, q_bonf)
         test_length_bonf, test_coverage_bonf = compute_coverage_size_bonf(target_test, mu_test, sd_test, q_bonf)
 
+        q_max_rank = calc_optimal_q_max_rank(target_calib, mu_calib, sd_calib, alpha)
+        valid_length_max_rank, valid_coverage_max_rank = compute_coverage_size_bonf(target_calib, mu_calib, sd_calib, q_max_rank)
+        test_length_max_rank, test_coverage_max_rank = compute_coverage_size_bonf( target_test, mu_test, sd_test, q_max_rank)
           
         print(f'q: {q}, q_gc: {q_gc}, q_bonf: {q_bonf}')
         print(f'valid_length: {valid_length}, valid_coverage: {valid_coverage}')
@@ -465,6 +483,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         print(f'test_length_gc: {test_length_gc}, test_coverage_gc: {test_coverage_gc}')
         print(f'valid_length_bonf: {valid_length_bonf}, valid_coverage_bonf: {valid_coverage_bonf}')
         print(f'test_length_bonf: {test_length_bonf}, test_coverage_bonf: {test_coverage_bonf}')
+        print(f'valid_length_max_rank: {valid_length_max_rank}, valid_coverage_max_rank: {valid_coverage_max_rank}')
+        print(f'test_length_max_rank: {test_length_max_rank}, test_coverage_max_rank: {test_coverage_max_rank}')
+        
             
 
         q_all.append(get_float(q))
@@ -485,6 +506,14 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         avg_len_all_bonf.append(get_float(test_length_bonf))
         avg_len_valid_all_bonf.append(get_float(valid_length_bonf))
         avg_cov_valid_all_bonf.append(get_float(valid_coverage_bonf))
+        
+        
+        q_all_max_rank.append(q_max_rank)
+        avg_len_all_max_rank.append(get_float(test_length_max_rank))
+        avg_cov_all_max_rank.append(get_float(test_coverage_max_rank))
+        avg_len_valid_all_max_rank.append(get_float(valid_length_max_rank))
+        avg_cov_valid_all_max_rank.append(get_float(valid_coverage_max_rank))
+        
         
     print(f"q cp: {q_all}")
     print(f"q gc: {q_all_gc}")
@@ -530,6 +559,14 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         print(f'avg_cov Bonf mean: {statistics.mean(avg_cov_all_bonf)}, avg_cov Bonf std: {statistics.stdev(avg_cov_all_bonf)}')
         f.write(f'avg_cov Bonf mean: {statistics.mean(avg_cov_all_bonf)}, avg_cov Bonf std: {statistics.stdev(avg_cov_all_bonf)}\n')
     
+        print(f'q max_rank mean: {np.array(q_all_max_rank).mean(axis=0).tolist()}, q max_rank std: {np.array(q_all_max_rank).std(axis=0).tolist()}')
+        f.write(f'q max_rank mean: {np.array(q_all_max_rank).mean(axis=0).tolist()}, q max_rank std: {np.array(q_all_max_rank).std(axis=0).tolist()}\n')
+        
+        print(f'avg_size max_rank mean: {statistics.mean(avg_len_valid_all_max_rank)}, avg_size max_rank std: {statistics.stdev(avg_len_valid_all_max_rank)}')
+        f.write(f'avg_size max_rank mean: {statistics.mean(avg_len_valid_all_max_rank)}, avg_size max_rank std: {statistics.stdev(avg_len_valid_all_max_rank)}\n')
+        
+        print(f'avg_cov max_rank mean: {statistics.mean(avg_cov_valid_all_max_rank)}, avg_cov max_rank std: {statistics.stdev(avg_cov_valid_all_max_rank)}')
+        f.write(f'avg_cov max_rank mean: {statistics.mean(avg_cov_valid_all_max_rank)}, avg_cov max_rank std: {statistics.stdev(avg_cov_valid_all_max_rank)}\n')
         
         # save validation results
         f.write(f"Validation results:\n")
@@ -550,7 +587,12 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
         print(f"avg_cov validation mean Bonf: {statistics.mean(avg_cov_valid_all_bonf)}, avg_cov validation std Bonf: {statistics.stdev(avg_cov_valid_all_bonf)}")
         f.write(f"avg_cov validation mean Bonf: {statistics.mean(avg_cov_valid_all_bonf)}, avg_cov validation std Bonf: {statistics.stdev(avg_cov_valid_all_bonf)}\n")
-                 
+        
+        print(f"avg_size validation mean max_rank: {statistics.mean(avg_len_valid_all_max_rank)}, avg_size validation std max_rank: {statistics.stdev(avg_len_valid_all_max_rank)}")
+        f.write(f"avg_size validation mean max_rank: {statistics.mean(avg_len_valid_all_max_rank)}, avg_size validation std max_rank: {statistics.stdev(avg_len_valid_all_max_rank)}\n")
+        print(f"avg_cov validation mean max_rank: {statistics.mean(avg_cov_valid_all_max_rank)}, avg_cov validation std max_rank: {statistics.stdev(avg_cov_valid_all_max_rank)}")
+        f.write(f"avg_cov validation mean max_rank: {statistics.mean(avg_cov_valid_all_max_rank)}, avg_cov validation std max_rank: {statistics.stdev(avg_cov_valid_all_max_rank)}\n")             
+    
         # Print and save additional info
         print(f"{dataset}, {base_model}, {alpha}, {level}")
         f.write(f"{dataset}, {base_model}, {alpha}, {level}\n")
