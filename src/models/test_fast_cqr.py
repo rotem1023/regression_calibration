@@ -125,7 +125,40 @@ def create_final_preds(t_p_s):
         dim_preds = torch.cat(dim_preds, dim=1).clamp(0, 1).permute(1,0,2).mean(dim=1)
         preds.append(dim_preds)
     return torch.stack(preds)
+   
+
+class DataToVisualize:
+    def __init__(self, x, lower_preds_x, lower_preds_y, higer_preds_x, higher_preds_y, target):
+        """
+        Initialize the DataToVisualize object with input data, predictions, and standard deviations.
+        
+        Args:
+            x (Tensor): Input data tensor.
+            mu (Tensor): Predicted mean tensor.
+            sd (Tensor): Standard deviation tensor.
+        """
+        self.x = x
+        self.lower_preds_x = lower_preds_x
+        self.lower_preds_y = lower_preds_y
+        self.higher_preds_x = higer_preds_x
+        self.higher_preds_y = higher_preds_y
+        self.target = target
+
+def create_data_to_visualize(data,preds, targets):
+    visaul_data_dim = data.shape[0]
+    preds_x = preds[0]
+    preds_y = preds[1]
+    lower_preds_x = preds_x[:visaul_data_dim, 0]
+    upper_preds_x = preds_x[:visaul_data_dim, 1]
+    lower_preds_y = preds_y[:visaul_data_dim, 0]
+    upper_preds_y = preds_y[:visaul_data_dim, 1]
+    targets = targets[:visaul_data_dim]
     
+    return DataToVisualize(data, lower_preds_x=lower_preds_x,
+                           lower_preds_y=lower_preds_y,
+                           higer_preds_x=upper_preds_x,
+                           higher_preds_y=upper_preds_y,
+                           target=targets) 
 
 
 def get_arrays(data_loader, model, device):
@@ -140,13 +173,14 @@ def get_arrays(data_loader, model, device):
             t_p_s.append(t_p)
 
             targets_s.append(target.detach()) 
-
+            if batch_idx ==0:
+                data_to_visualize = data.cpu().numpy()
 
         targets = torch.cat(targets_s).cpu()
         final_preds = create_final_preds(t_p_s)
-                            
-                    
-    return final_preds, targets    
+        
+                                
+    return final_preds, targets, create_data_to_visualize(data_to_visualize, final_preds, targets) 
     
 import numpy as np
 import torch
@@ -194,15 +228,16 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:2")
     dataset = 'lumbar'
     iters = 20
-    level = 5
+    level = 2
     alpha = 0.05
-    load_preds = True
+    load_preds = False
+    save_visual = False
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
@@ -219,7 +254,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims.pth.tar', map_location=device)
         model.load_state_dict(checkpoint['state_dict'])
         print(f"epoch: {checkpoint['epoch']}")
-        
+        model.eval()
         batch_size = 64
 
         if dataset =='brain':
@@ -237,11 +272,20 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
         
-        y_p_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
-        y_p_test_original, targets_test_original = get_arrays(test_loader, model, device)
+        y_p_calib_original, targets_calib_original, test_visual = get_arrays(calib_loader, model, device)
+        y_p_test_original, targets_test_original, valid_visual = get_arrays(test_loader, model, device)
         
         # save arrays
         os.makedirs(results_dir, exist_ok=True)
+        
+        if save_visual:
+            torch.save({'x': test_visual.x,
+                        'lower_preds_x': test_visual.lower_preds_x,
+                        'lower_preds_y': test_visual.lower_preds_y,
+                        'higher_preds_x': test_visual.higher_preds_x,
+                        'higher_preds_y': test_visual.higher_preds_y,
+                        'target': test_visual.target}, f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_test_visual.pth.tar')
+        
         np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_calib_original.npy', y_p_calib_original.cpu().numpy())
         np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_targets_calib_original.npy', targets_calib_original.cpu().numpy())
         np.save(f'{results_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())

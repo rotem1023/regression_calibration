@@ -178,6 +178,21 @@ def avg_ellipsoid_volume(dist_pred):
     volumes = ellipsoid_volumes(dist_pred)
     return volumes.mean().item()
 
+class DataToVisualize:
+    def __init__(self, x, mu, sd, target):
+        """
+        Initialize the DataToVisualize object with input data, predictions, and standard deviations.
+        
+        Args:
+            x (Tensor): Input data tensor.
+            mu (Tensor): Predicted mean tensor.
+            sd (Tensor): Standard deviation tensor.
+        """
+        self.x = x
+        self.mu = mu
+        self.sd = sd
+        self.target = target
+
 
 def get_arrays(data_loader, model, device):
     y_p_s = []
@@ -196,6 +211,8 @@ def get_arrays(data_loader, model, device):
             vars_s.append(var_bayesian.detach())
             logvars_s.append(logvar.detach())
             targets_s.append(target.detach())
+            if batch_idx ==0:
+                data_to_visualize = data.cpu().numpy()
 
 
 
@@ -206,8 +223,14 @@ def get_arrays(data_loader, model, device):
     var = torch.cat(vars_s, dim=0).cpu()
     logvar = torch.cat(logvars_s, dim=1).permute(1,0,2)
     logvar = logvar.mean(dim=1).cpu()
+    
+    visaul_data_dim = data_to_visualize.shape[0]
+    mu_to_visualize = mu[:visaul_data_dim]
+    logvar_to_visualize = logvar[:visaul_data_dim]
+    target_to_visualize = targets[:visaul_data_dim]
+    save_visual_data = DataToVisualize(data_to_visualize, mu_to_visualize, logvar_to_visualize.exp().sqrt(), target_to_visualize)
                     
-    return mu, var, logvar, targets    
+    return mu, var, logvar, targets , save_visual_data
     
 
 
@@ -227,6 +250,9 @@ def shuffle_arrays(calib_arrays, test_arrays):
     #     np.random.seed(seed)
 
     # Combine calib and test arrays
+    # TODO: remove this 
+    return calib_arrays, test_arrays
+
     combined_arrays = [torch.cat([calib, test], dim=0) for calib, test in zip(calib_arrays, test_arrays)]
     
     # Generate shuffle indices
@@ -257,15 +283,16 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:0")
+    device = torch.device("cuda:2")
     dataset = 'lumbar'
     iters = 20
     level = 1
-    alpha = 0.1
+    alpha = 0.05
     load_preds = True
+    save_visual = True
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
@@ -293,6 +320,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=device)
         model.load_state_dict(checkpoint['state_dict'])
         print(f"epoch: {checkpoint['epoch']}")
+        model.eval()
         if dataset =='brain':
             data_set_valid_original = BrainDatasetVal(model=base_model)
             data_set_test_original = BrainDatasetTest(model=base_model)
@@ -307,8 +335,17 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         
         calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
-        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original = get_arrays(calib_loader, model, device)
-        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original = get_arrays(test_loader, model, device)
+        y_p_test_original, vars_test_original, logvars_test_original, targets_test_original, test_visual = get_arrays(test_loader, model, device)
+        y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, valid_visual = get_arrays(calib_loader, model, device)
+
+        if save_visual:
+            torch.save(
+                {
+                'x' : test_visual.x,
+                'mu': test_visual.mu,
+                'sd': test_visual.sd,
+                'target': test_visual.target}, f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_test_visual.pth.tar')
+        
         np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_y_p_test_original.npy', y_p_test_original.cpu().numpy())
         np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_logvars_test_original.npy', logvars_test_original.cpu().numpy())
         np.save(f'{results_dir}/{dataset}_dataset_model_{base_model}_level{level}_targets_test_original.npy', targets_test_original.cpu().numpy())  

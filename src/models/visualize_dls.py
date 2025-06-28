@@ -13,10 +13,11 @@ import numpy as np
 import random
 from models import BreastPathQModel
 from cqr_model import BreastPathQModel as BreastPathQModelCqr
+from data_generator_lumbar import LumbarDataset as LumbarDatasetOriginal
 
 
 # Set fixed seed for reproducibility
-seed = 42
+seed = 1
 random.seed(seed)
 np.random.seed(seed)
 torch.manual_seed(seed)
@@ -24,11 +25,11 @@ torch.cuda.manual_seed_all(seed)  # If using multiple GPUs
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-Q_CP_DIM = {1 : {'efficientnetb4':5.8375121593475345}}
-Q_CP_X = {1: {'efficientnetb4': 2.175079619884491}}
-Q_CP_Y = {1: {'efficientnetb4': 2.2124157190322875}}
-Q_CQR_X = {1: {'efficientnetb4': 0.07859979122877121}}
-Q_CQR_Y = {1: {'efficientnetb4': 0.10996960997581481}}
+Q_CP_DIM = {1 : {'efficientnetb4':2.3419997453689576}}
+Q_CP_X = {1: {'efficientnetb4': 1.4532232463359833}}
+Q_CP_Y = {1: {'efficientnetb4': 1.339308488368988}}
+Q_CQR_X = {1: {'efficientnetb4': 0.08169629871845245}}
+Q_CQR_Y = {1: {'efficientnetb4': 0.1411776602268219}}
 
 
 class Bbox():
@@ -65,7 +66,7 @@ class LumbarDataset(Dataset):
     Loads the EndoVis instrument tracking dataset with bounding boxes.
     """
 
-    def __init__(self, level, mode='train', scale=1.0, augment=False):
+    def __init__(self, level, mode='train', scale=0.5, augment=False):
         self._scale = scale
         self._level = level
 
@@ -92,20 +93,24 @@ class LumbarDataset(Dataset):
         
         base_model = 'efficientnetb4'
         assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-        self.device = torch.device("cuda:1")
+        self.device = torch.device("cuda:2")
         level = 1
         alpha = 0.05
         checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=self.device)
         self.model_cp = BreastPathQModel(base_model, out_channels=2).to(self.device)
         self.model_cp.load_state_dict(checkpoint['state_dict'])
-        self.model_cp.eval()
+        print(f"epoch: {checkpoint['epoch']}")
+        # self.model_cp.eval()
         self.model_cqr = get_cqr_model(base_model, level, alpha, device=self.device)
-        self.model_cqr.eval()
+        # self.model_cqr.eval()
         self.q_x_cp =  Q_CP_X[level][base_model]
         self.q_y_cp = Q_CP_Y[level][base_model]  
         self.q_x_cqr = Q_CQR_X[level][base_model]
         self.q_y_cqr = Q_CQR_Y[level][base_model] 
         self.q_cp = Q_CP_DIM[level][base_model]    
+        self.cp_bonf_areas = []
+        self.cqr_areas = []
+        self.original_dataset = LumbarDatasetOriginal(level=level, mode=mode, scale=scale, augment=augment)
     
     def _get_mu_sd(self, mu, logvar):
         mu = mu.clamp(0, 1).permute(1, 0, 2)
@@ -137,7 +142,8 @@ class LumbarDataset(Dataset):
     
     def clac_limits(self, x):
         x = x.to(self.device).unsqueeze(0)
-        mu, logvar, _ = self.model_cp(x, dropout=True, mc_dropout=True, test=True)
+        with torch.no_grad():
+            mu, logvar, _ = self.model_cp(x, dropout=True, mc_dropout=True, test=True)
         mu, sd = self._get_mu_sd(mu, logvar)
         mu_x = mu[0][0]
         mu_y = mu[0][1]
@@ -147,21 +153,27 @@ class LumbarDataset(Dataset):
         bonf_x_plus = mu_x + self.q_x_cp * sd_x
         bonf_y_minus = mu_y - self.q_y_cp * sd_y
         bonf_y_plus = mu_y + self.q_y_cp * sd_y
-        print("area bonf:", (bonf_x_plus - bonf_x_minus) * (bonf_y_plus - bonf_y_minus))
+        cp_bonf_area = (bonf_x_plus - bonf_x_minus) * (bonf_y_plus - bonf_y_minus)
+        print("area bonf:", cp_bonf_area.item())
         bbox_bonf_cp = Bbox(x_minus=bonf_x_minus.item(), x_plus=bonf_x_plus.item(), y_minus=bonf_y_minus.item(), y_plus=bonf_y_plus.item())
-        
-        x_cqr_preds, y_cqr_preds = self.clac_cqr_limits(x)
+        with torch.no_grad():
+            x_cqr_preds, y_cqr_preds = self.clac_cqr_limits(x)
+        # x_cqr_preds = [[0][0]]
+        # y_cqr_preds = [[0][0]]
         x_minus_cqr = x_cqr_preds[0][0]  - self.q_x_cqr
         x_plus_cqr = x_cqr_preds[0][1] + self.q_x_cqr
         y_minus_cqr = y_cqr_preds[0][0]  - self.q_y_cqr
         y_plus_cqr = y_cqr_preds[0][1] + self.q_y_cqr
-        print("area cqr:", (x_plus_cqr - x_minus_cqr) * (y_plus_cqr - y_minus_cqr))
+        cqr_area = (x_plus_cqr - x_minus_cqr) * (y_plus_cqr - y_minus_cqr)
+        print("area cqr:", cqr_area.item())
         bbox_cqr = Bbox(x_minus=x_minus_cqr, x_plus=x_plus_cqr, y_minus=y_minus_cqr, y_plus=y_plus_cqr)
         
         dist_x = sd_x * math.sqrt(self.q_cp)
         dist_y = sd_y * math.sqrt(self.q_cp)
         elipsoid_cp = Elipsoid(x=mu_x.item(), y=mu_y.item(), a=dist_x.item(), b=dist_y.item())
 
+        self.cp_bonf_areas.append(cp_bonf_area.item())
+        self.cqr_areas.append(cqr_area.item())
         
         return elipsoid_cp, bbox_bonf_cp, bbox_cqr, mu_x, mu_y
         
@@ -189,26 +201,28 @@ class LumbarDataset(Dataset):
         return len(self._img_file_names)
 
     def __getitem__(self, idx):
-        trans_always2 = [transforms.ToTensor()]
-        trans = transforms.Compose(trans_always2)
+        # trans_always2 = [transforms.ToTensor()]
+        # trans = transforms.Compose(trans_always2)
         print(f"file: {self._img_file_names[idx]}")
         filename_values = self._img_file_names[idx]
         split_val = filename_values.split(',')
-        y = np.array(split_val[1:], dtype=np.float32)
+        # y = np.array(split_val[1:], dtype=np.float32)
 
         img_path = os.path.join(self.data_dir, split_val[0])
-        x = io.imread(img_path)
-        x = np.atleast_3d(x)
+        # x = io.imread(img_path)
+        # x = np.atleast_3d(x)
 
-        # Convert grayscale to RGB
-        if x.shape[2] == 1:
-            x = np.repeat(x, 3, axis=2)
+        # # Convert grayscale to RGB
+        # if x.shape[2] == 1:
+        #     x = np.repeat(x, 3, axis=2)
 
-        # Convert to PIL and resize
-        x_calc = self.to_pil_and_resize(x, self._scale)
+        # # Convert to PIL and resize
+        # x_calc = self.to_pil_and_resize(x, self._scale)
+        
+        x_calc, y = self.original_dataset.__getitem__(idx)
 
         # Extract bounding box coordinates from file (assumed format: x_min, y_min, x_max, y_max)
-        cp_dim_elip, cp_bonf_bbox, cqr_bonf_bbox, mu_x, mu_y = self.clac_limits(trans(x_calc))
+        cp_dim_elip, cp_bonf_bbox, cqr_bonf_bbox, mu_x, mu_y = self.clac_limits(x_calc)
 
         # Draw bounding box
         mu = [mu_x, mu_y]
@@ -217,17 +231,17 @@ class LumbarDataset(Dataset):
         # # my_image.save(f"{img_path.split('/')[-1]}_my_image.jpg")
         
         # cqr_image = self.draw_bounding_box(x_calc, cqr_bbox, y, mu, outline_color='pink')
-        
-        cp_image = self.draw_elipsoid(x_calc, cp_dim_elip, outline_color='red')
-        cp_image = self.draw_bounding_box(x_calc, cp_bonf_bbox, y, mu, outline_color='orange')
-        cp_image = self.draw_bounding_box(cp_image, cqr_bonf_bbox, y, mu, outline_color='pink')
+        to_pil = transforms.ToPILImage()
+        pil_image = to_pil(x_calc)
+        cp_image = self.draw_elipsoid(pil_image, cp_dim_elip, outline_color='red')
+        cp_image = self.draw_bounding_box(pil_image, cp_bonf_bbox, y, mu, outline_color='orange')
+        cp_image = self.draw_bounding_box(pil_image, cqr_bonf_bbox, y, mu, outline_color='pink')
         cp_image.save(f"{img_path.split('/')[-1]}_cp_image.jpg")
         
         
         
-        x = trans(x)
 
-        return x
+        return x_calc
 
     
     def draw_elipsoid(self, image, elipsoid, outline_color='red'):
@@ -242,8 +256,23 @@ class LumbarDataset(Dataset):
                       x_scaled + a_scaled, y_scaled + b_scaled),
                      outline=outline_color, width=3)
         return image
+ 
+ 
+ 
+def draw_elipsoid( image, elipsoid, outline_color='red'):
+        draw = ImageDraw.Draw(image)
+        img_width, img_height = image.size
+        x_scaled = int(elipsoid.x * img_width)
+        y_scaled = int(elipsoid.y * img_height)
+        a_scaled = int(elipsoid.a * img_width)
+        b_scaled = int(elipsoid.b * img_height)
         
-    def draw_bounding_box(self, image, bbox, true_value, predicted_value, outline_color = 'red'):
+        draw.ellipse((x_scaled - a_scaled, y_scaled - b_scaled,
+                      x_scaled + a_scaled, y_scaled + b_scaled),
+                     outline=outline_color, width=3)
+        return image
+           
+def draw_bounding_box(image, bbox, outline_color = 'red'):
         """
         Draws a bounding box and two points (blue & green) on the given PIL image.
 
@@ -267,21 +296,111 @@ class LumbarDataset(Dataset):
         # Draw the bounding box (red)
         draw.rectangle([x_min, y_min, x_max, y_max], outline=outline_color, width=3)
 
-        # Convert relative points to absolute pixels
-        true_x = int(true_value[0] * img_width)
-        true_y = int(true_value[1] * img_height)
-        predict_x = int(predicted_value[0] * img_width)
-        predict_y = int(predicted_value[1] * img_height)
-
-        # Draw points (small circles)
-        point_radius = 5  # Size of the points
-        draw.ellipse([true_x - point_radius, true_y - point_radius, true_x + point_radius, true_y + point_radius], fill="blue")
-        draw.ellipse([predict_x - point_radius, predict_y - point_radius, predict_x + point_radius, predict_y + point_radius], fill="green")
-
         return image
 
+def draw_center_point(image, point, color='blue'):
+    """
+    Draws a center point on the given PIL image.
+
+    :param image: PIL Image
+    :param point: Center point (x, y) in relative coordinates (0-1)
+    :param color: Color of the point
+    :return: PIL Image with center point drawn.
+    """
+    draw = ImageDraw.Draw(image)
+    
+    # Get image width and height
+    img_width, img_height = image.size
+
+    # Convert relative point coordinates to absolute pixels
+    x = int(point[0] * img_width)
+    y = int(point[1] * img_height)
+
+    # Draw the center point (blue)
+    draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill=color)
+
+    return image
+
+def darw_and_save_image(image, cp_elipsoid, bbox_bonf_cp, bbox_cqr, true_value, predicted_value, save_path):
+    cp_image = draw_elipsoid(image, cp_elipsoid, outline_color='red')
+    cp_image = draw_bounding_box(image, bbox_bonf_cp, outline_color='orange')
+    cp_image = draw_bounding_box(image, bbox_cqr, outline_color='pink')
+    cp_image = draw_center_point(cp_image, true_value, color='blue')
+    cp_image = draw_center_point(cp_image, predicted_value, color='green')
+    cp_image.save(save_path)
+
+def draw_image(index, x, mu, sd, target, lower_pred_x, lower_pred_y, higher_pred_x, higher_pred_y, base_model='efficientnetb4', dataset='lumbar', level=1, mode='test', alpha=0.05):
+    bonf_x_minus = mu[0] - Q_CP_X[level][base_model] * sd[0]
+    bonf_x_plus = mu[0] + Q_CP_X[level][base_model] * sd[0]
+    bonf_y_minus = mu[1] - Q_CP_Y[level][base_model] * sd[1]
+    bonf_y_plus = mu[1] + Q_CP_Y[level][base_model] * sd[1]
+    cp_bonf_area = (bonf_x_plus - bonf_x_minus) * (bonf_y_plus - bonf_y_minus)
+    print("area bonf:", cp_bonf_area.item())
+    bbox_bonf_cp = Bbox(x_minus=bonf_x_minus.item(), x_plus=bonf_x_plus.item(), y_minus=bonf_y_minus.item(), y_plus=bonf_y_plus.item())
+
+    dist_x = sd[0] * math.sqrt(Q_CP_DIM[level][base_model])
+    dist_y = sd[1] * math.sqrt(Q_CP_DIM[level][base_model])
+    elipsoid_cp = Elipsoid(x=mu[0].item(), y=mu[1].item(), a=dist_x.item(), b=dist_y.item())
+    
+    x_minus_cqr = lower_pred_x - Q_CQR_X[level][base_model]
+    x_plus_cqr = higher_pred_x + Q_CQR_X[level][base_model]
+    y_minus_cqr = lower_pred_y  - Q_CQR_Y[level][base_model]
+    y_plus_cqr = higher_pred_y + Q_CQR_Y[level][base_model]
+    cqr_area = (x_plus_cqr - x_minus_cqr) * (y_plus_cqr - y_minus_cqr)
+    print("area cqr:", cqr_area.item())
+    bbox_cqr = Bbox(x_minus=x_minus_cqr, x_plus=x_plus_cqr, y_minus=y_minus_cqr, y_plus=y_plus_cqr)    
+    
+    x = (np.transpose(x, (1, 2, 0)) * 255).astype(np.uint8)  # [3, 224, 224] -> [224, 224, 3]
+
+    # Create PIL image
+    image = Image.fromarray(x)
+    darw_and_save_image(image, elipsoid_cp, bbox_bonf_cp, bbox_cqr,
+                        true_value=target, predicted_value=mu,
+                        save_path=f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/visuals/{dataset}_dataset_model_{base_model}_level{level}_{mode}_alpha_{alpha}_index{index}.jpg'
+                        )
+    
+    
+
+
+
+def draw_images(base_model='efficientnetb4', dataset = 'lumbar', level=1, mode='test', alpha = 0.05):
+    # load data
+    results_cp_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/dims"
+    cp_file = f'{results_cp_dir}/{dataset}_dataset_model_{base_model}_level{level}_test_visual.pth.tar'
+    results_cqr_dir = "/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/predictions/cqr/dims"
+    cqr_file = f'{results_cqr_dir}/{dataset}_dataset_cqr_model_{base_model}_alpha_{alpha}_level_{level}_test_visual.pth.tar'
+    cp_data = torch.load(cp_file, map_location='cpu')
+    cqr_data = torch.load(cqr_file, map_location='cpu')
+    x_cp = cp_data['x']
+    mu_cp = cp_data['mu']
+    sd_cp = cp_data['sd']
+    # target_cp = cp_data['target']
+    x_cqr = cqr_data['x']
+    lower_preds_x = cqr_data['lower_preds_x']
+    lower_preds_y = cqr_data['lower_preds_y']
+    higher_preds_x = cqr_data['higher_preds_x']
+    higher_preds_y = cqr_data['higher_preds_y']
+    target_cqr = cqr_data['target']
+    for i in range(len(mu_cp)):
+        cur_x = x_cp[i]
+        cur_mu = mu_cp[i]
+        cur_sd = sd_cp[i]
+        cur_target = target_cqr[i]
+        cur_lower_preds_x = lower_preds_x[i]
+        cur_lower_preds_y = lower_preds_y[i]
+        cur_higher_preds_x = higher_preds_x[i]
+        cur_higher_preds_y = higher_preds_y[i]
+        draw_image(i,cur_x, cur_mu, cur_sd, cur_target, cur_lower_preds_x, cur_lower_preds_y, cur_higher_preds_x, cur_higher_preds_y, base_model=base_model, dataset=dataset, level=level, mode=mode, alpha=alpha)
+        
+
+
+
+draw_images()
 
 dataset = LumbarDataset(level=1, mode='test', scale=1.0, augment=False)
 
-for i in range(20):
+for i in range(40):
     sample = dataset[i]
+
+print(f"cp bonf avg size: {np.mean(dataset.cp_bonf_areas)}")
+print(f"cqr bonf avg size {np.mean(dataset.cqr_areas)}")
