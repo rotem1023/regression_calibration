@@ -1,6 +1,11 @@
 q cqr mean: [0.07533126324415207, 0.09174060523509979], q Bonf std: [0.0014326790580957258, 0.002930409526263504]
-avg_len valid  mean: 0.08485080115497112, avg_len valid std: 0.0018866908186685027
+avg_len valid  mean: 0.08513123206794262, avg_len valid std: 0.0018850591721246786
 avg_cov valid mean: 90.41075134277344, avg_cov std: 0.08209810939751006
-avg_len test mean: 0.08489134535193443, avg_len test std: 0.001885111369283591
+q max_rank mean: [0.07477813810110093, 0.09047368466854096], q max_rank std: [0.0013972435439817737, 0.0031054859446035987]
+avg_len valid max_rank mean: 0.08408663943409919, avg_len valid max_rank std: 0.00195942758724907
+avg_cov valid max_rank mean: 90.1470558166504, avg_cov valid max_rank std: 0.02384314814559842
+avg_len test mean: 0.0851750124245882, avg_len test std: 0.0018884901421255724
 avg_cov test mean: 90.57048530578614, avg_cov test std: 0.844460008606902
+avg_len test max_rank mean: 0.08413018435239791, avg_len test max_rank std: 0.001965642254958624
+avg_cov test max_rank mean: 90.31186637878417, avg_cov test max_rank std: 0.8888111121718922
 lumbar cqr, efficientnetb4, 0.1, 4

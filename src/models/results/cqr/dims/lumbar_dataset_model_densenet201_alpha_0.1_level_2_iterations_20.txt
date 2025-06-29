@@ -1,0 +1,11 @@
+q cqr mean: [0.0800278440117836, 0.0929280087351799], q Bonf std: [0.0009023082877701175, 0.00191292857829543]
+avg_len valid  mean: 0.07495864219963551, avg_len valid std: 0.0012442924537933299
+avg_cov valid mean: 90.3390266418457, avg_cov std: 0.061186312618550696
+q max_rank mean: [0.07948275208473206, 0.09231001436710358], q max_rank std: [0.0007292407569562618, 0.0018049993209245008]
+avg_len valid max_rank mean: 0.07432157546281815, avg_len valid max_rank std: 0.001024259264599174
+avg_cov valid max_rank mean: 90.13457489013672, avg_cov valid max_rank std: 0.0260185891823653
+avg_len test mean: 0.07496235147118568, avg_len test std: 0.0011765141150504926
+avg_cov test mean: 90.54061126708984, avg_cov test std: 0.8749294301635137
+avg_len test max_rank mean: 0.07432529330253601, avg_len test max_rank std: 0.0009282439316645557
+avg_cov test max_rank mean: 90.30005226135253, avg_cov test max_rank std: 0.8100984816631326
+lumbar cqr, densenet201, 0.1, 2

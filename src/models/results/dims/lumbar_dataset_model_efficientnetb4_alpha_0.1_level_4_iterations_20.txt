@@ -1,17 +1,22 @@
-q CP mean: 3.986856687068939, q CP std: 0.09482490351322677
-avg_size CP mean: 0.03406590055674315, avg_size CP std: 0.0009409135352459398
-avg_cov CP mean: 90.18509089946747, avg_cov CP std: 0.9939084175009675
-q GC mean: 2.281559658978581, q GC std: 0.0543697537361002
-avg_szie GC mean: 0.01949635548517108, avg_size GC std: 0.0005901199940299453
-avg_cov GC mean: 75.25608509778976, avg_cov GC std: 0.9784005241839033
-q Bonf mean: [1.7977351427078248, 1.8566803693771363], q Bonf std: [0.0316892141839337, 0.039999884534986346]
-avg_size Bonf mean: 0.036444208770990374, avg_size Bonf std: 0.0011453122632496743
-avg_cov Bonf mean: 91.11054725646973, avg_cov Bonf std: 0.875404444072904
+q CP mean: 1.6416654109954834, q CP std: 0.02709848994692237
+avg_size CP mean: 0.036822674609720704, avg_size CP std: 0.0008057683111917908
+avg_cov CP mean: 90.23073077201843, avg_cov CP std: 0.7675174951458333
+q GC mean: 1.4637977148683368, q GC std: 0.035952162759853766
+avg_szie GC mean: 0.03283450631424785, avg_size GC std: 0.0009845238363974467
+avg_cov GC mean: 88.12119603157043, avg_cov GC std: 0.7467096153839771
+q Bonf mean: [1.136847323179245, 1.2444186806678772], q Bonf std: [0.014649672951510893, 0.01584511004666077]
+avg_size Bonf mean: 0.04049087259918451, avg_size Bonf std: 0.0008666938905069438
+avg_cov Bonf mean: 91.24492835998535, avg_cov Bonf std: 0.6971030372614453
+q max_rank mean: [1.110219532251358, 1.214900404214859], q max_rank std: [0.015217776435855118, 0.015247378220391496]
+avg_size max_rank mean: 0.03860215004533529, avg_size max_rank std: 0.0007194504389421639
+avg_cov max_rank mean: 90.13184204101563, avg_cov max_rank std: 0.02548939753797821
 Validation results:
-avg_size validation mean: 0.034187876246869565, avg_size validation std: 0.0008824726693692273
-avg_cov validation mean: 90.04817605018616, avg_cov validation std: 0.0225292336283968
-avg_size validation mean GC: 0.0195632541552186, avg_size validation std GC: 0.00044440093242892553
-avg_cov validation mean GC: 75.38032412528992, avg_cov validation std GC: 0.8152699575015261
-avg_size validation mean Bonf: 0.036444208770990374, avg_size validation std Bonf: 0.0011453122632496743
-avg_cov validation mean Bonf: 91.05223007202149, avg_cov validation std Bonf: 0.12794497217052914
+avg_size validation mean: 0.036901381239295004, avg_size validation std: 0.0006296285159377071
+avg_cov validation mean: 90.04564046859741, avg_cov validation std: 0.023842699763844517
+avg_size validation mean GC: 0.03290185071527958, avg_size validation std GC: 0.0007601975995156679
+avg_cov validation mean GC: 87.8498986363411, avg_cov validation std GC: 0.47609975071393124
+avg_size validation mean Bonf: 0.04049087259918451, avg_size validation std Bonf: 0.0008666938905069438
+avg_cov validation mean Bonf: 91.14857978820801, avg_cov validation std Bonf: 0.14850705584802007
+avg_size validation mean max_rank: 0.03860215004533529, avg_size validation std max_rank: 0.0007194504389421639
+avg_cov validation mean max_rank: 90.13184204101563, avg_cov validation std max_rank: 0.02548939753797821
 lumbar, efficientnetb4, 0.1, 4

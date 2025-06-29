@@ -296,13 +296,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:2")
+    device = torch.device("cuda:3")
     dataset = 'lumbar'
     iters = 20
     level = 1
-    alpha = 0.05
+    alpha = 0.1
     load_preds = True
-    save_visual = True
+    save_visual = False
     
     print(f'alpha: {alpha}, level: {level}, base_model: {base_model}, mix_indices: {mix_indices}, save_params: {save_params}, load_params: {load_params}, calc_mean: {calc_mean}, save_test: {save_test}, load_test: {load_test}')
     
