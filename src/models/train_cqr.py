@@ -101,7 +101,8 @@ class AllQuantileLoss(nn.Module):
 
         """
         loss = 0.0
-        for i in range(target.ndim):
+        ndim = target.shape[1] 
+        for i in range(ndim):
             cur_target = target[:, i]
             cur_prds = preds[i]
             loss += self.one_dim_loss(cur_prds, cur_target)
@@ -535,10 +536,10 @@ if __name__ == '__main__':
     dataset = 'lumbar'
     # efficientnetb4 densenet201
     base_model = 'densenet201'
-    level = 3
+    level = 2
     epochs=150
     alpha=0.1
-    GPU=3
+    GPU=2
     
     print("Process ID: ", os.getpid())
 

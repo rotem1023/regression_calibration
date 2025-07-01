@@ -16,6 +16,7 @@ from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
 from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
+from data_generator_oct import OCTDataset
 from models import BreastPathQModel, DistancePredictor
 from glob import glob
 import statistics
@@ -29,8 +30,9 @@ from max_rank import adjusted_q_max_rank
     
 def calc_bonferroni_q(target_calib, mu_calib, sd_calib, alpha): 
     qs = []
-    updated_alpha = alpha / target_calib.ndim
-    for i in range(target_calib.ndim):
+    ndims = target_calib.shape[1]
+    updated_alpha = alpha / ndims
+    for i in range(ndims):
         target_i = target_calib[:, i] 
         mu_i = mu_calib[:, i]
         sd_calib_i = sd_calib[:, i]
@@ -62,7 +64,8 @@ def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
 
 def compute_coverage_size_bonf(targets, preds, sds, q_s):
     coverages, lengths = [], []
-    for i in range(targets.ndim):
+    ndim = targets.shape[1]
+    for i in range(ndim):
         cur_tgrets = targets[:, i]
         cur_preds = preds[:, i]
         cur_sd = sds[:, i]
@@ -296,8 +299,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:3")
-    dataset = 'lumbar'
+    device = torch.device("cuda:0")
+    dataset = 'oct'
     iters = 20
     level = 1
     alpha = 0.1
@@ -318,7 +321,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
 
     # save test arrays
     if not load_preds:
-        model = BreastPathQModel(base_model, out_channels=2).to(device)
+        
 
         # TODO: load checkpoint 
         # checkpoint_path = glob(f"/home/dsi/frenkel2/regression_calibration/models/{base_model}_gaussian_endovis_199_new.pth.tar")[0]
@@ -326,14 +329,24 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         # TODO fix it 
         if dataset == 'brain':
             checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_{dataset}_best.pth.tar', map_location=device)
+        elif dataset == 'oct':
+            out_channels = 6
+            checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_oct_best_dims.pth.tar', map_location=device)
         else:
+            out_channels = 2
             checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=device)
+        model = BreastPathQModel(base_model, out_channels=out_channels).to(device)
         model.load_state_dict(checkpoint['state_dict'])
         print(f"epoch: {checkpoint['epoch']}")
         model.eval()
         if dataset =='brain':
             data_set_valid_original = BrainDatasetVal(model=base_model)
             data_set_test_original = BrainDatasetTest(model=base_model)
+        elif dataset == 'oct':
+            resize_to = (256, 256)
+
+            data_set_valid_original = OCTDataset(group='valid', augment=False, resize_to=resize_to)
+            data_set_test_original = OCTDataset(group='test', augment=False, resize_to=resize_to)
         else:
             data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
             data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)

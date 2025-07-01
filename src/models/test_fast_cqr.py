@@ -22,6 +22,7 @@ import statistics
 import math
 import load_trained_models
 from data_generator_brain import BrainDatasetTest, BrainDatasetVal 
+from data_generator_oct import OCTDataset
 from functools import reduce
 from operator import mul
 from max_rank import adjusted_q_max_rank
@@ -274,6 +275,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         if dataset =='brain':
             data_set_valid_original = BrainDatasetVal(model=base_model)
             data_set_test_original = BrainDatasetTest(model=base_model)
+        elif dataset == 'oct':
+            in_channels = 3
+            out_channels = 6
+            resize_to = (256, 256)
+
+            data_set_train = OCTDataset(group='train', augment=True, resize_to=resize_to)
+            data_set_valid = OCTDataset(group='valid', augment=False, resize_to=resize_to)
         else:
             data_set_valid_original = LumbarDataset(level=level, mode='val', augment=False, scale=0.5)
             data_set_test_original = LumbarDataset(level=level, mode='test', augment=False, scale=0.5)
