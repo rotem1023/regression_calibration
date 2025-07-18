@@ -104,8 +104,10 @@ class AllQuantileLoss(nn.Module):
         ndim = target.shape[1] 
         for i in range(ndim):
             cur_target = target[:, i]
-            cur_prds = preds[i]
-            loss += self.one_dim_loss(cur_prds, cur_target)
+            lower_preds = preds[0][:, i]
+            upper_preds = preds[1][:, i]
+            cur_preds = torch.stack([lower_preds, upper_preds], dim=1)
+            loss += self.one_dim_loss(cur_preds, cur_target)
         return loss
             
         
@@ -327,27 +329,17 @@ def train(base_model,
 
         data_dir = '/home/dsi/frenkel2/data/3doct-pose-dataset/data'
 
-        data_set_train = OCTDataset(data_dir=data_dir, augment=True, resize_to=resize_to, preload=True)
-        data_set_valid = OCTDataset(data_dir=data_dir, augment=False, preloaded_data_from=data_set_train)
+        data_set_train =  OCTDataset(group='train', augment=True, resize_to=resize_to)
+        data_set_valid =  OCTDataset(group='valid', augment=False, resize_to=resize_to)
 
         assert len(data_set_train) > 0
         assert len(data_set_valid) > 0
 
-        # indices = torch.randperm(len(data_set_valid))
-        # train_indices = indices[:len(indices) - 2*valid_size]
-        # valid_indices = indices[len(indices) - 2*valid_size:len(indices) - 1*valid_size]
-        # test_indices = indices[len(indices) - 1*valid_size:]
-        # torch.save(train_indices, f'./{dataset}_train_indices.pth')
-        # torch.save(valid_indices, f'./{dataset}_valid_indices.pth')
-        # torch.save(test_indices, f'./{dataset}_test_indices.pth')
+        train_indices = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/data_indices/{dataset}_train_indices.pth')
+        valid_indices = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/data_indices/{dataset}_valid_indices.pth')
 
-        train_indices = torch.load(f'/home/dsi/frenkel2/regression_calibration/data_indices/{dataset}_train_indices.pth')
-        valid_indices = torch.load(f'/home/dsi/frenkel2/regression_calibration/data_indices/{dataset}_valid_indices.pth')
-
-        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(train_indices))
-        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=batch_size,
-                                                   sampler=SubsetRandomSampler(valid_indices))
+        train_loader = torch.utils.data.DataLoader(data_set_train, batch_size=32, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(data_set_valid, batch_size=32, shuffle=True)
     elif dataset == 'brain':
         in_channels = 3
         out_channels = 1
@@ -533,13 +525,13 @@ if __name__ == '__main__':
     WD=1e-7
 
     
-    dataset = 'lumbar'
+    dataset = 'oct'
     # efficientnetb4 densenet201
     base_model = 'densenet201'
-    level = 2
+    level = 1
     epochs=150
-    alpha=0.1
-    GPU=2
+    alpha=0.05
+    GPU=0
     
     print("Process ID: ", os.getpid())
 

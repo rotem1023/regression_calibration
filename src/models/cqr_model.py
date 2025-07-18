@@ -59,11 +59,11 @@ class BreastPathQModel(torch.nn.Module):
                 self._base_model = EfficientNet.from_name('efficientnet-b4', in_channels= in_channels)
             fc_in_features = 1792
 
-        self._fc_mu1_x = torch.nn.Linear(fc_in_features, fc_in_features)
-        self._fc_mu2_x = torch.nn.Linear(fc_in_features, out_channels)
+        self._lower_preds_1 = torch.nn.Linear(fc_in_features, fc_in_features)
+        self._lower_preds_2 = torch.nn.Linear(fc_in_features, out_channels)
         
-        self._fc_mu1_y = torch.nn.Linear(fc_in_features, fc_in_features)
-        self._fc_mu2_y = torch.nn.Linear(fc_in_features, out_channels)
+        self._hiher_preds_1 = torch.nn.Linear(fc_in_features, fc_in_features)
+        self._higher_preds_2 = torch.nn.Linear(fc_in_features, out_channels)
 
         if 'resnet' in base_model:
             self._base_model.fc = torch.nn.Identity()
@@ -86,26 +86,26 @@ class BreastPathQModel(torch.nn.Module):
         x = self._base_model(input).relu()
 
         x_temp = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
-        x_temp = leaky_relu(self._fc_mu1_x(x_temp))
-        x_temp = self._fc_mu2_x(x_temp)
+        x_temp = leaky_relu(self._lower_preds_1(x_temp))
+        x_temp = self._lower_preds_2(x_temp)
         x_temp_accu = x_temp.unsqueeze(0)
         
         y_temp = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
-        y_temp = leaky_relu(self._fc_mu1_y(y_temp))
-        y_temp = self._fc_mu2_y(y_temp)
+        y_temp = leaky_relu(self._hiher_preds_1(y_temp))
+        y_temp = self._higher_preds_2(y_temp)
         y_temp_accu = y_temp.unsqueeze(0)
         
         for i in range(T - 1):
             x = self._base_model(input).relu()
 
             x_temp = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
-            x_temp = leaky_relu(self._fc_mu1_x(x_temp))
-            x_temp = self._fc_mu2_x(x_temp)
+            x_temp = leaky_relu(self._lower_preds_1(x_temp))
+            x_temp = self._lower_preds_2(x_temp)
             x_temp_accu = torch.cat([x_temp_accu, x_temp.unsqueeze(0)], dim=0)
             
             y_temp = torch.nn.functional.dropout(x, p=self._dropout_p, training=dropout)
-            y_temp = leaky_relu(self._fc_mu1_y(y_temp))
-            y_temp = self._fc_mu2_y(y_temp)
+            y_temp = leaky_relu(self._hiher_preds_1(y_temp))
+            y_temp = self._higher_preds_2(y_temp)
             y_temp_accu = torch.cat([y_temp_accu, y_temp.unsqueeze(0)], dim=0)
 
         t1 = x_temp_accu.mean(dim=0)
