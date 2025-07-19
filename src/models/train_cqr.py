@@ -24,7 +24,8 @@ from utils import kaiming_normal_init
 from utils import nll_criterion_gaussian, nll_criterion_laplacian
 from utils import save_current_snapshot
 from data_generator_lumbar import LumbarDataset
-
+from functools import reduce
+from operator import mul
 torch.backends.cudnn.benchmark = True
 
 
@@ -45,20 +46,16 @@ def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
     avg_length : float, average length
 
     """
-    y_test = y_test.unsqueeze(1).mean(dim=1)
-    in_the_range = torch.sum((y_test >= y_lower) & (y_test <= y_upper))
-    coverage = in_the_range / len(y_test) * 100
-    avg_length = torch.mean(abs(y_upper - y_lower))
-    return ((y_test >= y_lower) & (y_test <= y_upper)), avg_length
+    length = torch.clamp(abs(y_upper - y_lower),max=1)
+    return ((y_test >= y_lower) & (y_test <= y_upper)), length
 
 def compute_coverage_len(targets, preds):
     coverages, lengths = [], []
     ndim = targets.shape[1] 
     for i in range(ndim):
         cur_tgrets = targets[:, i]
-        cur_preds = preds[i]
-        y_lower = cur_preds[:, 0]
-        y_upper = cur_preds[:, 1]
+        y_lower = preds[0][:,i]
+        y_upper = preds[1][:,i]
         cur_coverage, cur_length = compute_in_range_len_one_dim(cur_tgrets, y_lower, y_upper)
         coverages.append(cur_coverage)
         lengths.append(cur_length)
@@ -69,8 +66,8 @@ def compute_coverage_len(targets, preds):
     overall_cvg = overall_cvg.to(dtype=torch.uint8)   
     
     coverage = torch.sum(overall_cvg) / len(overall_cvg)
-    length = np.prod(lengths)
-    return coverage * 100, length
+    length = reduce(mul, lengths)
+    return coverage * 100, torch.mean(length).item()
 
 
 class AllQuantileLoss(nn.Module):
@@ -426,6 +423,7 @@ def train(base_model,
 
                 writer.add_scalar('train/loss', loss.item(), batch_counter)
                 batch_counter += 1
+
                 
 
             epoch_train_loss = np.mean(epoch_train_loss)
@@ -532,8 +530,8 @@ if __name__ == '__main__':
     base_model = 'efficientnetb4'
     level = 1
     epochs=150
-    alpha=0.05
-    GPU=6
+    alpha=0.1
+    GPU=7
     
     print("Process ID: ", os.getpid())
 
