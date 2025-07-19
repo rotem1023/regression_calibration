@@ -86,6 +86,7 @@ class AllQuantileLoss(nn.Module):
         """
         super().__init__()
         self.quantiles = quantiles
+        print("quantiles:", self.quantiles)
 
     def forward(self, preds, target):
         """ Compute the pinball loss
@@ -387,7 +388,7 @@ def train(base_model,
     print("ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)")
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)
     
-    loss_func = AllQuantileLoss([qlow/out_channels, qhigh/out_channels])
+    loss_func = AllQuantileLoss([qlow/out_channels, 1- qlow/out_channels])
     # loss_func = nn.MSELoss()
 
     print("")
