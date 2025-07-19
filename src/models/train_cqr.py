@@ -53,7 +53,8 @@ def compute_in_range_len_one_dim(y_test, y_lower, y_upper):
 
 def compute_coverage_len(targets, preds):
     coverages, lengths = [], []
-    for i in range(targets.ndim):
+    ndim = targets.shape[1] 
+    for i in range(ndim):
         cur_tgrets = targets[:, i]
         cur_preds = preds[i]
         y_lower = cur_preds[:, 0]
@@ -204,7 +205,7 @@ def train(base_model,
 
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     assert dataset in ['breastpathq', 'boneage', 'endovis', 'oct', 'lumbar', 'brain']
-    assert gpu in [0, 1, 2, 3]
+    # assert gpu in [0, 1, 2, 3]
 
     device = torch.device("cuda:"+str(gpu) if torch.cuda.is_available() else "cpu")
     print("data_set =", dataset)
@@ -528,11 +529,11 @@ if __name__ == '__main__':
     
     dataset = 'oct'
     # efficientnetb4 densenet201
-    base_model = 'densenet201'
+    base_model = 'efficientnetb4'
     level = 1
     epochs=150
     alpha=0.05
-    GPU=0
+    GPU=6
     
     print("Process ID: ", os.getpid())
 
