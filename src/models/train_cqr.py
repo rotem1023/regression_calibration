@@ -525,10 +525,10 @@ if __name__ == '__main__':
     WD=1e-7
 
     
-    dataset = 'oct'
+    dataset = 'lumbar'
     # efficientnetb4 densenet201
     base_model = 'efficientnetb4'
-    level = 1
+    level = 2
     epochs=150
     alpha=0.1
     GPU=7

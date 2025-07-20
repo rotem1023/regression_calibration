@@ -28,8 +28,8 @@ torch.backends.cudnn.benchmark = False
 Q_CP_DIM = {1 : {'efficientnetb4':2.3419997453689576}}
 Q_CP_X = {1: {'efficientnetb4': 1.4532232463359833}}
 Q_CP_Y = {1: {'efficientnetb4': 1.339308488368988}}
-Q_CQR_X = {1: {'efficientnetb4': 0.08169629871845245}}
-Q_CQR_Y = {1: {'efficientnetb4': 0.1411776602268219}}
+Q_CQR_X = {1: {'efficientnetb4': -0.03238054811954498}}
+Q_CQR_Y = {1: {'efficientnetb4': -0.013682380318641663}}
 
 
 class Bbox():
@@ -55,7 +55,7 @@ class Elipsoid():
 
 def get_cqr_model(base_model, level, alpha, device):
     models_dir = f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
-    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims.pth.tar', map_location=device) 
+    checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims_best.pth.tar', map_location=device) 
     model = BreastPathQModelCqr(base_model, out_channels=2).to(device)
     model.load_state_dict(checkpoint['state_dict'])
     return model
