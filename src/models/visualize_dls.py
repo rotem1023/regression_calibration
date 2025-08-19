@@ -133,11 +133,28 @@ class LumbarDataset(Dataset):
         y_preds = preds[1]
         return x_preds, y_preds
 
+
+    def create_final_preds(self, t_p_s):
+        preds = []
+        for i in range(len(t_p_s[0])):
+            dim_preds = []
+            for j in range(len(t_p_s)):
+                dim_preds.append(t_p_s[j][i].detach().cpu())
+            dim_preds = torch.cat(dim_preds, dim=1).clamp(0, 1).permute(1,0,2).mean(dim=1)
+            preds.append(dim_preds)
+        return torch.stack(preds)
+
+    def create_final_preds_oct(self, t_p_s):
+        preds = self.create_final_preds(t_p_s)
+        preds = preds.permute(2, 1, 0)
+        x_preds = preds[0]
+        y_preds = preds[1]
+        return x_preds, y_preds
     
     def clac_cqr_limits(self, x):
         x = x.to(self.device)
         preds = self.model_cqr(x, dropout=True, mc_dropout=True, test=True)
-        final_preds = self.create_final_preds([preds])
+        final_preds = self.create_final_preds_oct([preds])
         return final_preds
     
     def clac_limits(self, x):
@@ -385,12 +402,12 @@ def draw_images(base_model='efficientnetb4', dataset = 'lumbar', level=1, mode='
         cur_x = x_cp[i]
         cur_mu = mu_cp[i]
         cur_sd = sd_cp[i]
-        cur_target = target_cqr[i]
-        cur_lower_preds_x = lower_preds_x[i]
-        cur_lower_preds_y = lower_preds_y[i]
-        cur_higher_preds_x = higher_preds_x[i]
-        cur_higher_preds_y = higher_preds_y[i]
-        draw_image(i,cur_x, cur_mu, cur_sd, cur_target, cur_lower_preds_x, cur_lower_preds_y, cur_higher_preds_x, cur_higher_preds_y, base_model=base_model, dataset=dataset, level=level, mode=mode, alpha=alpha)
+        cqr_target = target_cqr[i]
+        cqr_lower_preds_x = lower_preds_x[i]
+        cqr_lower_preds_y = lower_preds_y[i]
+        cqr_higher_preds_x = higher_preds_x[i]
+        cqr_higher_preds_y = higher_preds_y[i]
+        draw_image(i,cur_x, cur_mu, cur_sd, cqr_target, cqr_lower_preds_x, cqr_lower_preds_y, cqr_higher_preds_x, cqr_higher_preds_y, base_model=base_model, dataset=dataset, level=level, mode=mode, alpha=alpha)
         
 
 
