@@ -386,7 +386,7 @@ def train(base_model,
     print("ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)")
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)
     
-    loss_func = AllQuantileLoss([qlow/out_channels, 1- qlow/out_channels])
+    loss_func = AllQuantileLoss([qlow, 1- qlow])
     # loss_func = nn.MSELoss()
 
     print("")
@@ -423,6 +423,8 @@ def train(base_model,
 
                 writer.add_scalar('train/loss', loss.item(), batch_counter)
                 batch_counter += 1
+                if batch_idx ==0:
+                    print(f"batch_idx: {batch_idx}, loss: {loss.item():.5f}, lower preds: {t[0].detach().cpu().numpy()}, upper_opreds = {t[1].detach().cpu().numpy()}, targets: {targets.detach().cpu().numpy()}")
 
                 
 
@@ -458,11 +460,11 @@ def train(base_model,
             
             coverage, avg_length = compute_coverage_len(preds=t_valid, targets=targets_valid)
             
-            if (coverage >= target_coverage) and (avg_length < best_avg_length):
-                best_avg_length = avg_length
-                best_coverage = coverage
-                best_epoch = e
-                is_best = True
+            # if (coverage >= target_coverage) and (avg_length < best_avg_length):
+            #     best_avg_length = avg_length
+            #     best_coverage = coverage
+            #     best_epoch = e
+            #     is_best = True
 
             print(f"Epoch {e}:")
             print(f"train: loss: {epoch_train_loss:.5f}, pinball: {loss.item():.5f}")
@@ -472,9 +474,10 @@ def train(base_model,
             # save epoch losses
             train_losses.append(epoch_train_loss)
             valid_losses.append(epoch_valid_loss)
+            
 
-            # if valid_losses[-1] <= np.min(valid_losses):
-            #   is_best = True
+            if valid_losses[-1] <= np.min(valid_losses):
+              is_best = True
 
             if is_best:
                 # filename = f"./snapshots/{base_model}_{likelihood}_{dataset}_best.pth.tar"
@@ -525,13 +528,13 @@ if __name__ == '__main__':
     WD=1e-7
 
     
-    dataset = 'lumbar'
+    dataset = 'oct'
     # efficientnetb4 densenet201
-    base_model = 'efficientnetb4'
-    level = 2
-    epochs=150
-    alpha=0.1
-    GPU=7
+    base_model = 'densenet201'
+    level = 1
+    epochs=500
+    alpha=0.05
+    GPU=3
     
     print("Process ID: ", os.getpid())
 

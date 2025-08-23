@@ -11,10 +11,10 @@ from torchvision import datasets, transforms, models
 from torch.utils.data import SubsetRandomSampler, ConcatDataset, Subset
 from tqdm import tqdm
 import torch
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 from tqdm import tqdm
 from torch.utils.data.sampler import SubsetRandomSampler
-from data_generator_endovis import EndoVisDataset
+# from data_generator_endovis import EndoVisDataset
 from data_generator_lumbar import LumbarDataset
 from cqr_model import BreastPathQModel
 from glob import glob
@@ -195,7 +195,7 @@ def get_arrays(data_loader, model, device, dataset):
             targets_s.append(target.detach()) 
             if batch_idx ==0:
                 data_to_visualize = data.cpu().numpy()
-                break
+                # break
 
 
         targets = torch.cat(targets_s).cpu()
@@ -206,9 +206,7 @@ def get_arrays(data_loader, model, device, dataset):
         
                                 
     return final_preds, targets, create_data_to_visualize(data_to_visualize, final_preds, targets) 
-    
-import numpy as np
-import torch
+
 
 def shuffle_arrays(calib_arrays, test_arrays):
     calib_preds, calib_targets = calib_arrays
@@ -253,16 +251,16 @@ def main():
     eval_test_set( save_params=save_params, mix_indices=mix_indices, load_params=load_params, calc_mean=calc_mean, save_test=save_test, load_test=load_test)
 
 def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_mean=False, save_test=False, load_test=False):
-    base_model = 'efficientnetb4'
+    base_model = 'densenet201'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
     device = torch.device("cuda:1")
-    dataset = 'lumbar'
+    dataset = 'oct'
     iters = 20
     level = 1
     alpha = 0.05
     load_preds = False
-    save_visual = True
+    save_visual = False
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
@@ -275,7 +273,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         # checkpoint_path = glob(f"C:\lior\studies\master\projects\calibration/regression calibration/regression_calibration\models\snapshots\{base_model}_gaussian_endovis_199_new.pth.tar")[0]
         if dataset == 'oct':
             out_channels = 6
-            checkpoint = torch.load(f'{models_dir}/{base_model}_{dataset}_L1_alpha_{alpha}_cqr_dims_best.pth.tar', map_location=device)
+            checkpoint = torch.load(f'{models_dir}/{base_model}_{dataset}_L1_alpha_{alpha}_cqr_dims.pth.tar', map_location=device)
         else:
             out_channels = 2
             checkpoint = torch.load(f'{models_dir}/{base_model}_lumbar_L{level}_alpha_{alpha}_cqr_dims_best.pth.tar', map_location=device)
