@@ -25,11 +25,13 @@ torch.cuda.manual_seed_all(seed)  # If using multiple GPUs
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
-Q_CP_DIM = {1 : {'efficientnetb4':2.3419997453689576}}
+Q_CP_DIM = {1 : {'efficientnetb4':2.340525758266449}}
 Q_CP_X = {1: {'efficientnetb4': 1.4532232463359833}}
 Q_CP_Y = {1: {'efficientnetb4': 1.339308488368988}}
-Q_CQR_X = {1: {'efficientnetb4': -0.03238054811954498}}
-Q_CQR_Y = {1: {'efficientnetb4': -0.013682380318641663}}
+Q_CQR_X = {1: {'efficientnetb4': 0.03720600605010986}}
+Q_CQR_Y = {1: {'efficientnetb4': 0.024203389883041382}}
+Q_CQR_MAX_RANK_X = {1: {'efficientnetb4': 0.03660971522331238}}
+Q_CQR_MAX_RANK_Y = {1: {'efficientnetb4': 0.023421835899353028}}
 
 
 class Bbox():
@@ -93,7 +95,7 @@ class LumbarDataset(Dataset):
         
         base_model = 'efficientnetb4'
         assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-        self.device = torch.device("cuda:2")
+        self.device = torch.device("cuda:1")
         level = 1
         alpha = 0.05
         checkpoint = torch.load(f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=self.device)
@@ -251,7 +253,7 @@ class LumbarDataset(Dataset):
         to_pil = transforms.ToPILImage()
         pil_image = to_pil(x_calc)
         cp_image = self.draw_elipsoid(pil_image, cp_dim_elip, outline_color='red')
-        cp_image = self.draw_bounding_box(pil_image, cp_bonf_bbox, y, mu, outline_color='orange')
+        # cp_image = self.draw_bounding_box(pil_image, cp_bonf_bbox, y, mu, outline_color='orange')
         cp_image = self.draw_bounding_box(pil_image, cqr_bonf_bbox, y, mu, outline_color='pink')
         cp_image.save(f"{img_path.split('/')[-1]}_cp_image.jpg")
         
@@ -338,13 +340,15 @@ def draw_center_point(image, point, color='blue'):
 
     return image
 
-def darw_and_save_image(image, cp_elipsoid, bbox_bonf_cp, bbox_cqr, true_value, predicted_value, save_path):
+def darw_and_save_image(image, cp_elipsoid, bbox_bonf_cp, bbox_cqr, bb_cqr_max_rank, true_value, predicted_value, save_path):
     cp_image = draw_elipsoid(image, cp_elipsoid, outline_color='red')
-    cp_image = draw_bounding_box(image, bbox_bonf_cp, outline_color='orange')
+    # cp_image = draw_bounding_box(image, bbox_bonf_cp, outline_color='orange')
     cp_image = draw_bounding_box(image, bbox_cqr, outline_color='pink')
+    # cp_image = draw_bounding_box(image, bb_cqr_max_rank, outline_color='purple')
     cp_image = draw_center_point(cp_image, true_value, color='blue')
     cp_image = draw_center_point(cp_image, predicted_value, color='green')
     cp_image.save(save_path)
+    return is_point_in_ellipse(true_value[0].item(), true_value[1].item(), cp_elipsoid.x, cp_elipsoid.y, cp_elipsoid.a, cp_elipsoid.b)
 
 def draw_image(index, x, mu, sd, target, lower_pred_x, lower_pred_y, higher_pred_x, higher_pred_y, base_model='efficientnetb4', dataset='lumbar', level=1, mode='test', alpha=0.05):
     bonf_x_minus = mu[0] - Q_CP_X[level][base_model] * sd[0]
@@ -367,17 +371,51 @@ def draw_image(index, x, mu, sd, target, lower_pred_x, lower_pred_y, higher_pred
     print("area cqr:", cqr_area.item())
     bbox_cqr = Bbox(x_minus=x_minus_cqr, x_plus=x_plus_cqr, y_minus=y_minus_cqr, y_plus=y_plus_cqr)    
     
+    
+    x_minus_cqr_max_rank = lower_pred_x - Q_CQR_MAX_RANK_X[level][base_model]
+    x_plus_cqr_max_rank = higher_pred_x + Q_CQR_MAX_RANK_X[level][base_model]
+    y_minus_cqr_max_rank = lower_pred_y  - Q_CQR_MAX_RANK_Y[level][base_model]
+    y_plus_cqr_max_rank = higher_pred_y + Q_CQR_MAX_RANK_Y[level][base_model]
+    cqr_area_max_rank = (x_plus_cqr_max_rank - x_minus_cqr_max_rank) * (y_plus_cqr_max_rank - y_minus_cqr_max_rank)
+    print("area cqr max rank:", cqr_area_max_rank.item())
+    bbox_cqr_max_rank = Bbox(x_minus=x_minus_cqr_max_rank, x_plus=x_plus_cqr_max_rank, y_minus=y_minus_cqr_max_rank, y_plus=y_plus_cqr_max_rank)
+    
+    
     x = (np.transpose(x, (1, 2, 0)) * 255).astype(np.uint8)  # [3, 224, 224] -> [224, 224, 3]
 
     # Create PIL image
     image = Image.fromarray(x)
-    darw_and_save_image(image, elipsoid_cp, bbox_bonf_cp, bbox_cqr,
+    return darw_and_save_image(image, elipsoid_cp, bbox_bonf_cp, bbox_cqr, bbox_cqr_max_rank,
                         true_value=target, predicted_value=mu,
                         save_path=f'/home/dsi/rotemnizhar/dev/regression_calibration/src/models/results/visuals/{dataset}_dataset_model_{base_model}_level{level}_{mode}_alpha_{alpha}_index{index}.jpg'
                         )
     
     
-
+def is_point_in_ellipse(x, y, h, k, a, b, theta=0):
+    """
+    Check if a 2D point (x, y) is inside or on an ellipse.
+    
+    Parameters:
+        x, y   : point coordinates
+        h, k   : ellipse center
+        a      : semi-major axis
+        b      : semi-minor axis
+        theta  : rotation angle of the ellipse in radians (default = 0, aligned with axes)
+    
+    Returns:
+        True if point is inside or on the ellipse, False otherwise.
+    """
+    # Translate point relative to ellipse center
+    dx = x - h
+    dy = y - k
+    
+    # Rotate point by -theta
+    x_rot = dx * math.cos(theta) + dy * math.sin(theta)
+    y_rot = -dx * math.sin(theta) + dy * math.cos(theta)
+    
+    # Check ellipse equation
+    value = (x_rot**2) / (a**2) + (y_rot**2) / (b**2)
+    return value <= 1
 
 
 def draw_images(base_model='efficientnetb4', dataset = 'lumbar', level=1, mode='test', alpha = 0.05):
@@ -398,17 +436,21 @@ def draw_images(base_model='efficientnetb4', dataset = 'lumbar', level=1, mode='
     higher_preds_x = cqr_data['higher_preds_x']
     higher_preds_y = cqr_data['higher_preds_y']
     target_cqr = cqr_data['target']
+    target_cp = cp_data['target']
+    in_elips = 0
     for i in range(len(mu_cp)):
         cur_x = x_cp[i]
         cur_mu = mu_cp[i]
         cur_sd = sd_cp[i]
-        cqr_target = target_cqr[i]
+        cqr_target = target_cp[i]
         cqr_lower_preds_x = lower_preds_x[i]
         cqr_lower_preds_y = lower_preds_y[i]
         cqr_higher_preds_x = higher_preds_x[i]
         cqr_higher_preds_y = higher_preds_y[i]
-        draw_image(i,cur_x, cur_mu, cur_sd, cqr_target, cqr_lower_preds_x, cqr_lower_preds_y, cqr_higher_preds_x, cqr_higher_preds_y, base_model=base_model, dataset=dataset, level=level, mode=mode, alpha=alpha)
-        
+        in_elips += draw_image(i,cur_x, cur_mu, cur_sd, cqr_target, cqr_lower_preds_x, cqr_lower_preds_y, cqr_higher_preds_x, cqr_higher_preds_y, base_model=base_model, dataset=dataset, level=level, mode=mode, alpha=alpha)
+    print(f"num in elips: {in_elips} out of {len(mu_cp)}")
+    print(f"percent in elips: {in_elips/len(mu_cp)}")
+    return        
 
 
 

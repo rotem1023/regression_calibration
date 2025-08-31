@@ -254,13 +254,13 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
     base_model = 'efficientnetb4'
     models_dir = '/home/dsi/rotemnizhar/dev/regression_calibration/src/models/snapshots/cqr'
     assert base_model in ['resnet101', 'densenet201', 'efficientnetb4']
-    device = torch.device("cuda:2")
-    dataset = 'lumbar'
+    device = torch.device("cuda:1")
+    dataset = 'oct'
     iters = 20
     level = 1
     alpha = 0.05
     load_preds = False
-    save_visual = False
+    save_visual = True
     
     print(f'Running CQR for model {base_model} with alpha {alpha} and level {level}, {iters} iterations')
     
@@ -305,8 +305,8 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
         calib_loader = torch.utils.data.DataLoader(data_set_valid_original, batch_size=batch_size, shuffle=False)
         test_loader = torch.utils.data.DataLoader(data_set_test_original, batch_size=batch_size, shuffle=False)
         
-        y_p_calib_original, targets_calib_original, test_visual = get_arrays(calib_loader, model, device, dataset = dataset)
-        y_p_test_original, targets_test_original, valid_visual = get_arrays(test_loader, model, device, dataset  = dataset)
+        y_p_calib_original, targets_calib_original, valid_visual = get_arrays(calib_loader, model, device, dataset = dataset)
+        y_p_test_original, targets_test_original, test_visual = get_arrays(test_loader, model, device, dataset  = dataset)
         
         # save arrays
         os.makedirs(results_dir, exist_ok=True)

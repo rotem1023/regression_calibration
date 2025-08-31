@@ -26,18 +26,18 @@ from utils import save_current_snapshot
 torch.backends.cudnn.benchmark = True
 
 
-def train(base_model= 'densenet201',
+def train(base_model= 'efficientnetb4',
           likelihood= 'gaussian',
           dataset = 'oct',
-          batch_size=4,
+          batch_size=32,
           init_lr=0.001,
-          epochs=100,
+          epochs=150,
           augment=True,
           valid_size=300,
           lr_patience=20,
           weight_decay=1e-8,
-          gpu=0,
-          level=2):
+          gpu=1,
+          level=1):
     print("Current PID:", os.getpid())
 
 
@@ -245,7 +245,6 @@ def train(base_model= 'densenet201',
     print("ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)")
     lr_scheduler_net = optim.lr_scheduler.ReduceLROnPlateau(optimizer_net, patience=lr_patience, factor=0.1)
 
-    print("")
 
     train_losses = []
     valid_losses = []

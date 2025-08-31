@@ -136,6 +136,10 @@ def calc_stats(q, target, mu, sd):
     dist_pred = math.sqrt(q) * sd
     area = avg_ellipsoid_volume(dist_pred)
     coverage = avg_cov_ellipsoid(q, target, mu, sd)
+    in_elps = 0
+    for i in range(len(dist_pred)):
+        in_elps += is_point_in_ellipse(target[i,0].item(), target[i,1].item(), mu[i,0].item(), mu[i,1].item(), dist_pred[i,0].item(), dist_pred[i,1].item())
+    
     return area, coverage
 
 def avg_cov_ellipsoid(q, target, mu, sd):
@@ -159,7 +163,33 @@ def avg_cov_ellipsoid(q, target, mu, sd):
     
     # Compute the percentage
     return within.mean().item() * 100
-        
+
+
+def is_point_in_ellipse(x, y, h, k, a, b, theta=0):
+    """
+    Check if a 2D point (x, y) is inside or on an ellipse.
+    
+    Parameters:
+        x, y   : point coordinates
+        h, k   : ellipse center
+        a      : semi-major axis
+        b      : semi-minor axis
+        theta  : rotation angle of the ellipse in radians (default = 0, aligned with axes)
+    
+    Returns:
+        True if point is inside or on the ellipse, False otherwise.
+    """
+    # Translate point relative to ellipse center
+    dx = x - h
+    dy = y - k
+    
+    # Rotate point by -theta
+    x_rot = dx * math.cos(theta) + dy * math.sin(theta)
+    y_rot = -dx * math.sin(theta) + dy * math.cos(theta)
+    
+    # Check ellipse equation
+    value = (x_rot**2) / (a**2) + (y_rot**2) / (b**2)
+    return value <= 1        
 
 def avg_cov(dist_true, dist_pred, target):
     in_the_range = torch.sum(dist_true <= dist_pred).item()
@@ -334,7 +364,7 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_oct_best_dims.pth.tar', map_location=device)
         else:
             out_channels = 2
-            checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_snapshot_dims.pth.tar', map_location=device)
+            checkpoint = torch.load(f'{models_dir}/{base_model}_gaussian_lumbar_L{level}_best_dims.pth.tar', map_location=device)
         model = BreastPathQModel(base_model, out_channels=out_channels).to(device)
         model.load_state_dict(checkpoint['state_dict'])
         print(f"epoch: {checkpoint['epoch']}")
@@ -443,6 +473,9 @@ def eval_test_set(save_params=False, load_params=False, mix_indices=True, calc_m
             calib_shuffled, test_shuffled = shuffle_arrays(calib_arrays, test_arrays)
             y_p_calib, vars_calib, logvars_calib, targets_calib = calib_shuffled
             y_p_test, vars_test, logvars_test, targets_test = test_shuffled
+        else:
+            y_p_calib, vars_calib, logvars_calib, targets_calib = y_p_calib_original, vars_calib_original, logvars_calib_original, targets_calib_original, 
+            y_p_test, vars_test, logvars_test, targets_test = y_p_test_original, vars_test_original, logvars_test_original, targets_test_original
         
                     
         # validation set   
