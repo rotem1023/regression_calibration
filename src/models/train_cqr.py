@@ -532,7 +532,7 @@ if __name__ == '__main__':
     # efficientnetb4 densenet201
     base_model = 'efficientnetb4'
     level = 1
-    epochs=150
+    epochs=350
     alpha=0.05
     GPU=1
     
